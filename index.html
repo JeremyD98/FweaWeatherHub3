@@ -8,6 +8,8 @@
 <meta name="theme-color" content="#0e1a3a">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
+<!-- See-through status bar so the sky runs up behind the clock. iOS reads this only at install:
+     after changing it, remove the app from the home screen and add it again. -->
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Fwea">
 <link rel="manifest" href="manifest.json">
@@ -33,26 +35,26 @@
   --sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
-/* iOS home-screen bug: with a see-through status bar, iOS reports the viewport short by the height of
-   the status bar, so 100%, 100dvh, innerHeight and even position: fixed; inset: 0 all stop ~60pt above
-   the real bottom. fitToScreen() below measures the true height into --app-h, and --app-extra is how
-   far past iOS's idea of the bottom that is. Every full-screen layer is sized from these, and nothing
-   sets overflow on html or body, because that would clip back to the short viewport.
-   Before the script runs, 100lvh is the one unit iOS gets right in standalone mode. */
-:root { --app-h: 100vh; --app-extra: 0px; }
+/* Why nothing here is position: fixed.
+   On iOS 26 home-screen apps with the see-through status bar, iOS reports the viewport one status bar
+   short of the screen, and it clips fixed layers to that short box. That left a strip at the bottom.
+   The page itself still paints edge to edge, which is why scrolling pages look fine. So the app is a
+   normal page: #app is absolutely positioned, as tall as the real screen (--app-h, measured in
+   fitToScreen), and everything lives inside it. Touch scrolling is switched off on the main screen,
+   so it still behaves like one fixed screen. Do not reintroduce position: fixed for anything that
+   reaches the bottom of the screen. */
+:root { --app-h: 100vh; }
 @media (display-mode: standalone), (display-mode: fullscreen) { :root { --app-h: 100lvh; } }
-/* html and body stay at iOS's (short) height and hold nothing in flow, so there is never anything to scroll.
-   The layers that paint are all fixed and sized from --app-h. */
-html, body { height: 100%; overscroll-behavior: none; }
-/* The page colour matches the bottom of the current sky. iOS home-screen apps can leave a strip
-   by the home indicator that fixed layers don't reach; this way it blends instead of showing navy. */
+html, body { overscroll-behavior: none; }
+/* Page colour follows the bottom of the sky, so any edge iOS shows while bouncing still matches. */
 html { background: #b79e8e; transition: background-color 1.4s ease; }
+#app { position: absolute; top: 0; left: 0; right: 0; height: var(--app-h); overflow: hidden; }
 body { font-family: var(--sans); color: var(--ink); -webkit-font-smoothing: antialiased; -webkit-tap-highlight-color: transparent; overscroll-behavior: none; }
 button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
 input { font: inherit; color: inherit; }
 
 /* The whole viewport is the sky. One layer per sky, crossfaded, because gradients can't transition. */
-.sky { position: fixed; top: 0; left: 0; right: 0; height: var(--app-h); }
+.sky { position: absolute; inset: 0; }
 .sky i { position: absolute; inset: 0; opacity: 0; transition: opacity 1.4s ease; }
 .sky i.on { opacity: 1; }
 .sky [data-s=clear]    { background: linear-gradient(172deg, #0e1a3a 0%, #22396b 38%, #5677b0 74%, #b79e8e 100%); }
@@ -63,7 +65,7 @@ input { font: inherit; color: inherit; }
 .sky [data-s=night]    { background: linear-gradient(172deg, #03050c 0%, #0b1328 45%, #1b2748 82%, #2d3a5c 100%); }
 /* One soft light source, top right, breathing. */
 .light {
-  position: fixed; width: 130vmax; height: 130vmax; right: -60vmax; top: -70vmax; border-radius: 50%; pointer-events: none;
+  position: absolute; width: 130vmax; height: 130vmax; right: -60vmax; top: -70vmax; border-radius: 50%; pointer-events: none;
   background: radial-gradient(closest-side, rgba(255,255,255,.30), rgba(255,255,255,.08) 55%, transparent);
   animation: breathe 9s ease-in-out infinite alternate;
 }
@@ -72,7 +74,7 @@ body[data-sky=night] .light { animation-name: breathe-dim; }
 @keyframes breathe-dim { from { transform: scale(1); opacity: .2; } to { transform: scale(1.08); opacity: .35; } }
 
 .screen {
-  position: fixed; top: 0; left: 0; right: 0; height: var(--app-h); max-width: 440px; margin: 0 auto;
+  position: absolute; inset: 0; max-width: 440px; margin: 0 auto; touch-action: none;
   display: grid; grid-template-rows: auto 1fr auto auto;
   padding: calc(env(safe-area-inset-top) + 8px) 20px calc(env(safe-area-inset-bottom) + 18px);
 }
@@ -115,11 +117,11 @@ body[data-sky=night] .light { animation-name: breathe-dim; }
 .spark.note span::after { display: none; }
 
 /* ---------- Sheets: everything that isn't the first half-second ---------- */
-.scrim { position: fixed; top: 0; left: 0; right: 0; height: var(--app-h); z-index: 20; background: rgba(0,0,0,.35); opacity: 0; pointer-events: none; transition: opacity .3s; }
+.scrim { position: absolute; inset: 0; z-index: 20; touch-action: none; background: rgba(0,0,0,.35); opacity: 0; pointer-events: none; transition: opacity .3s; }
 .scrim.on { opacity: 1; pointer-events: auto; }
 .sheet {
-  position: fixed; z-index: 30; left: 0; right: 0; bottom: calc(-1 * var(--app-extra)); max-width: 480px; margin: 0 auto;
-  max-height: calc(var(--app-h) - env(safe-area-inset-top) - 40px); overflow-y: auto; overscroll-behavior: contain;
+  position: absolute; z-index: 30; left: 0; right: 0; bottom: 0; max-width: 480px; margin: 0 auto;
+  max-height: calc(100% - env(safe-area-inset-top) - 40px); overflow-y: auto; overscroll-behavior: contain;
   padding: 10px 20px calc(env(safe-area-inset-bottom) + 22px); border-radius: 28px 28px 0 0;
   background: var(--sheet); border-top: 1px solid var(--glass-edge);
   -webkit-backdrop-filter: blur(30px) saturate(170%); backdrop-filter: blur(30px) saturate(170%);
@@ -207,6 +209,7 @@ body.intro .reveal { animation: rise .8s cubic-bezier(.2,.7,.2,1) both; }
 </style>
 </head>
 <body>
+<div id="app">
 <div class="sky" id="sky"></div>
 <div class="light"></div>
 
@@ -271,6 +274,7 @@ body.intro .reveal { animation: rise .8s cubic-bezier(.2,.7,.2,1) both; }
   <div class="cast" id="cast"></div>
   <div class="voice" id="voice"></div>
 </section>
+</div>
 
 <script>
 /* ===================================================================
@@ -1159,27 +1163,31 @@ function playIntro() {
 }
 $('infoBtn').addEventListener('click', playIntro);
 
-/* ---------- Fill the whole screen, even when iOS says otherwise ----------
-   See the note at the top of the CSS. The true height is the viewport plus the top safe-area inset,
-   capped at the physical screen so a well-behaved browser (or a future iOS fix) is never overshot. */
+/* ---------- The real screen height ----------
+   iOS home-screen apps report the viewport short by the top inset (see the CSS note), so size #app
+   from the viewport plus that inset, capped at the physical screen. In a browser tab this is just
+   innerHeight. */
 const insetProbe = document.createElement('div');
-insetProbe.style.cssText = 'position:fixed;top:0;left:0;width:0;height:env(safe-area-inset-top,0px);visibility:hidden;pointer-events:none';
+insetProbe.style.cssText = 'position:absolute;top:0;left:0;width:0;height:env(safe-area-inset-top,0px);visibility:hidden;pointer-events:none';
 document.body.appendChild(insetProbe);
 function fitToScreen() {
   const standalone = navigator.standalone === true || matchMedia('(display-mode: standalone)').matches;
   let h = innerHeight;
   if (standalone) {
     const screenH = innerWidth < innerHeight ? Math.max(screen.width, screen.height) : Math.min(screen.width, screen.height);
-    h = Math.min(screenH, innerHeight + insetProbe.offsetHeight);
+    h = Math.max(innerHeight, Math.min(screenH, innerHeight + insetProbe.offsetHeight));
   }
   document.documentElement.style.setProperty('--app-h', h + 'px');
-  document.documentElement.style.setProperty('--app-extra', Math.max(0, h - innerHeight) + 'px');
 }
 fitToScreen();
 addEventListener('resize', fitToScreen);
 addEventListener('orientationchange', () => setTimeout(fitToScreen, 300));
 addEventListener('pageshow', fitToScreen);
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') fitToScreen(); });
+// The page is a hair taller than iOS's idea of the viewport, so keep it pinned to the top.
+// Leave it alone while typing, so iOS can move the search box above the keyboard.
+addEventListener('scroll', () => { if (scrollY && document.activeElement?.tagName !== 'INPUT') scrollTo(0, 0); }, { passive: true });
+$('q').addEventListener('blur', () => scrollTo(0, 0));
 
 /* ---------- Boot ---------- */
 

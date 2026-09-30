@@ -1,6 +1,6 @@
 // Bump this on every deploy. It is the only thing that makes installed copies pick up a new shell.
-// v23: fill the real screen on iOS home-screen (works around the short-viewport bug).
-const CACHE = 'fwea-hub-v23';
+// v25: see-through status bar is back; the app is a normal page sized to the real screen, no fixed layers.
+const CACHE = 'fwea-hub-v25';
 
 const SHELL = [
   './',
