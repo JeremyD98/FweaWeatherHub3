@@ -1,6 +1,6 @@
 // Bump this on every deploy. It is the only thing that makes installed copies pick up a new shell.
-// v22: page colour follows the sky, so no navy strip by the home indicator.
-const CACHE = 'fwea-hub-v22';
+// v23: fill the real screen on iOS home-screen (works around the short-viewport bug).
+const CACHE = 'fwea-hub-v23';
 
 const SHELL = [
   './',
