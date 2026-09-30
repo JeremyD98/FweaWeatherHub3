@@ -33,13 +33,16 @@
   --sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
-html, body { height: 100%; overflow: hidden; background: #0e1a3a; }
+html, body { height: 100%; overflow: hidden; }
+/* The page colour matches the bottom of the current sky. iOS home-screen apps can leave a strip
+   by the home indicator that fixed layers don't reach; this way it blends instead of showing navy. */
+html { background: #b79e8e; transition: background-color 1.4s ease; }
 body { font-family: var(--sans); color: var(--ink); -webkit-font-smoothing: antialiased; -webkit-tap-highlight-color: transparent; overscroll-behavior: none; }
 button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
 input { font: inherit; color: inherit; }
 
 /* The whole viewport is the sky. One layer per sky, crossfaded, because gradients can't transition. */
-.sky { position: fixed; inset: 0; }
+.sky { position: fixed; top: 0; left: 0; right: 0; bottom: calc(-1 * env(safe-area-inset-bottom, 0px)); }
 .sky i { position: absolute; inset: 0; opacity: 0; transition: opacity 1.4s ease; }
 .sky i.on { opacity: 1; }
 .sky [data-s=clear]    { background: linear-gradient(172deg, #0e1a3a 0%, #22396b 38%, #5677b0 74%, #b79e8e 100%); }
@@ -679,6 +682,8 @@ const PRESETS = [
 const STALE_AFTER_MIN = 30;
 // Status bar colour per sky: the top stop of each gradient.
 const SKY_TOP = { clear: '#0e1a3a', hot: '#2e0900', rainy: '#161b22', freezing: '#081222', mild: '#1e2431', night: '#03050c' };
+// Page colour per sky: the bottom stop, so anything the sky layer doesn't cover still matches.
+const SKY_BOTTOM = { clear: '#b79e8e', hot: '#f7a53f', rainy: '#66707c', freezing: '#b8cde0', mild: '#9aa2ae', night: '#2d3a5c' };
 
 const $ = id => document.getElementById(id);
 const store = {
@@ -712,6 +717,7 @@ function setSky(key) {
   document.body.dataset.sky = key;
   document.querySelectorAll('#sky i').forEach(el => el.classList.toggle('on', el.dataset.s === key));
   document.querySelector('meta[name=theme-color]').content = SKY_TOP[key];
+  document.documentElement.style.backgroundColor = SKY_BOTTOM[key];
 }
 setSky('clear');
 

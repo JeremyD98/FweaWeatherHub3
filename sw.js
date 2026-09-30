@@ -1,6 +1,6 @@
 // Bump this on every deploy. It is the only thing that makes installed copies pick up a new shell.
-// v21: spring icon (orange blossom heart).
-const CACHE = 'fwea-hub-v21';
+// v22: page colour follows the sky, so no navy strip by the home indicator.
+const CACHE = 'fwea-hub-v22';
 
 const SHELL = [
   './',
