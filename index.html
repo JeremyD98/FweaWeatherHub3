@@ -1,0 +1,1166 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Fwea's Weather Hub</title>
+<meta name="description" content="What to wear today, in about three seconds.">
+<meta name="theme-color" content="#0e1a3a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Fwea">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<!-- iOS ignores SVG touch icons, so the home screen needs the PNG. -->
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;500;600&family=Playfair+Display:ital,wght@1,400&display=swap">
+<style>
+/* The Jobs edit. One screen, no scroll: the answer and the outfit.
+   Everything else is one tap away in a sheet. */
+:root {
+  --ink: #ffffff;
+  --ink-soft: rgba(255,255,255,.74);
+  --ink-faint: rgba(255,255,255,.46);
+  --ink-ghost: rgba(255,255,255,.18);
+  --glass: rgba(255,255,255,.11);
+  --glass-edge: rgba(255,255,255,.22);
+  --sheet: rgba(18,22,32,.62);
+  --stale: #ffb4a4;
+  --serif: 'Playfair Display', 'Iowan Old Style', Georgia, serif;
+  --sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; background: #0e1a3a; }
+body { font-family: var(--sans); color: var(--ink); -webkit-font-smoothing: antialiased; -webkit-tap-highlight-color: transparent; overscroll-behavior: none; }
+button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+input { font: inherit; color: inherit; }
+
+/* The whole viewport is the sky. One layer per sky, crossfaded, because gradients can't transition. */
+.sky { position: fixed; inset: 0; }
+.sky i { position: absolute; inset: 0; opacity: 0; transition: opacity 1.4s ease; }
+.sky i.on { opacity: 1; }
+.sky [data-s=clear]    { background: linear-gradient(172deg, #0e1a3a 0%, #22396b 38%, #5677b0 74%, #b79e8e 100%); }
+.sky [data-s=hot]      { background: linear-gradient(172deg, #2e0900 0%, #8a2507 36%, #df5a16 70%, #f7a53f 100%); }
+.sky [data-s=rainy]    { background: linear-gradient(172deg, #161b22 0%, #2c343f 45%, #4d5764 80%, #66707c 100%); }
+.sky [data-s=freezing] { background: linear-gradient(172deg, #081222 0%, #1d3553 45%, #5f81a6 82%, #b8cde0 100%); }
+.sky [data-s=mild]     { background: linear-gradient(172deg, #1e2431 0%, #3a4456 45%, #6c7688 82%, #9aa2ae 100%); }
+.sky [data-s=night]    { background: linear-gradient(172deg, #03050c 0%, #0b1328 45%, #1b2748 82%, #2d3a5c 100%); }
+/* One soft light source, top right, breathing. */
+.light {
+  position: fixed; width: 130vmax; height: 130vmax; right: -60vmax; top: -70vmax; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(closest-side, rgba(255,255,255,.30), rgba(255,255,255,.08) 55%, transparent);
+  animation: breathe 9s ease-in-out infinite alternate;
+}
+body[data-sky=night] .light { animation-name: breathe-dim; }
+@keyframes breathe { from { transform: scale(1); opacity: .65; } to { transform: scale(1.08); opacity: 1; } }
+@keyframes breathe-dim { from { transform: scale(1); opacity: .2; } to { transform: scale(1.08); opacity: .35; } }
+
+.screen {
+  position: relative; height: 100%; max-width: 440px; margin: 0 auto;
+  display: grid; grid-template-rows: auto 1fr auto auto;
+  padding: calc(env(safe-area-inset-top) + 8px) 20px calc(env(safe-area-inset-bottom) + 18px);
+}
+
+.top { display: grid; grid-template-columns: 44px 1fr 44px; align-items: center; }
+.where { justify-self: center; display: grid; justify-items: center; padding: 6px 12px; min-height: 44px; border-radius: 14px; }
+.where span { font-size: 13px; letter-spacing: .06em; color: var(--ink-soft); }
+.where small { font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-faint); margin-top: 2px; min-height: 12px; }
+.where small.old { color: var(--stale); }
+.icon-btn { width: 44px; height: 44px; display: grid; place-items: center; color: var(--ink-faint); border-radius: 50%; }
+.icon-btn:active { background: var(--ink-ghost); }
+
+.core { align-self: center; text-align: center; }
+.temp { font-weight: 200; font-size: clamp(120px, 40vw, 190px); line-height: .9; letter-spacing: -.05em; display: inline-flex; margin-left: .12em;
+  -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; touch-action: manipulation; transition: transform .35s cubic-bezier(.3,1.5,.5,1); }
+.temp.held { transform: scale(.96); }
+/* The soft glow under your thumb while you hold the temperature. */
+.hold-glow { position: fixed; z-index: 5; width: 68px; height: 68px; margin: -34px 0 0 -34px; border-radius: 50%; pointer-events: none;
+  background: rgba(255,255,255,.18); box-shadow: 0 0 0 10px rgba(255,255,255,.08); opacity: 0; transform: scale(.6); transition: opacity .25s, transform .35s cubic-bezier(.3,1.5,.5,1); }
+.hold-glow.on { opacity: 1; transform: none; }
+.temp sup { font-size: .4em; font-weight: 200; line-height: 1.3; color: var(--ink-soft); letter-spacing: 0; }
+.verdict { font-family: var(--serif); font-style: italic; font-weight: 400; font-size: clamp(24px, 7vw, 30px); line-height: 1.2; margin: 14px auto 0; max-width: 16em; }
+.aside { font-size: 14px; color: var(--ink-soft); margin-top: 10px; letter-spacing: .01em; min-height: 1.4em; }
+
+.wear { list-style: none; display: grid; grid-template-columns: repeat(var(--n, 3), minmax(0, 1fr)); gap: 8px; margin: 0 auto 22px; width: 100%; max-width: calc(var(--n, 3) * 84px); }
+.wear button {
+  width: 100%; display: grid; justify-items: center; gap: 7px; padding: 13px 4px 11px; border-radius: 18px;
+  background: var(--glass); border: 1px solid var(--glass-edge);
+  -webkit-backdrop-filter: blur(20px) saturate(160%); backdrop-filter: blur(20px) saturate(160%);
+  animation: chip .5s cubic-bezier(.2,.7,.2,1) both; transition: background .2s;
+}
+.wear button.on { background: rgba(255,255,255,.24); }
+.wear span { font-size: 11.5px; font-weight: 500; letter-spacing: .01em; text-align: center; line-height: 1.2; }
+@keyframes chip { from { opacity: 0; transform: translateY(8px); } }
+
+.spark { display: block; width: 100%; padding: 0 4px; text-align: center; }
+.spark svg { width: 100%; height: auto; display: block; overflow: visible; }
+.spark span { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--ink-soft); margin-top: 8px; min-height: 18px; }
+.spark span::after { content: ''; width: 5px; height: 5px; border-right: 1.5px solid var(--ink-faint); border-bottom: 1.5px solid var(--ink-faint); transform: translateY(2px) rotate(-135deg); }
+.spark.note span::after { display: none; }
+
+/* ---------- Sheets: everything that isn't the first half-second ---------- */
+.scrim { position: fixed; inset: 0; z-index: 20; background: rgba(0,0,0,.35); opacity: 0; pointer-events: none; transition: opacity .3s; }
+.scrim.on { opacity: 1; pointer-events: auto; }
+.sheet {
+  position: fixed; z-index: 30; left: 0; right: 0; bottom: 0; max-width: 480px; margin: 0 auto;
+  max-height: calc(100% - env(safe-area-inset-top) - 40px); overflow-y: auto; overscroll-behavior: contain;
+  padding: 10px 20px calc(env(safe-area-inset-bottom) + 22px); border-radius: 28px 28px 0 0;
+  background: var(--sheet); border-top: 1px solid var(--glass-edge);
+  -webkit-backdrop-filter: blur(30px) saturate(170%); backdrop-filter: blur(30px) saturate(170%);
+  transform: translateY(105%); visibility: hidden;
+  transition: transform .3s ease, visibility 0s .3s;
+}
+.sheet.open { transform: none; visibility: visible; transition: transform .38s cubic-bezier(.2,.8,.2,1); }
+.grab { width: 36px; height: 5px; border-radius: 3px; background: var(--ink-ghost); margin: 0 auto 16px; }
+.sheet h2 { font-size: 11px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-faint); margin: 22px 0 12px; display: flex; justify-content: space-between; gap: 12px; }
+.sheet .grab + h2 { margin-top: 0; }
+.sheet h2 small { font-size: 11px; letter-spacing: .02em; text-transform: none; font-weight: 400; color: var(--ink-soft); white-space: nowrap; }
+
+/* Places */
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { min-height: 38px; padding: 0 15px; border-radius: 999px; font-size: 14px; display: inline-flex; align-items: center; gap: 7px; background: var(--glass); border: 1px solid var(--glass-edge); }
+.chip.on { background: var(--ink); color: #111; border-color: var(--ink); }
+.search { position: relative; margin-top: 12px; }
+.search svg { position: absolute; left: 14px; top: 14px; color: var(--ink-faint); }
+.search input { width: 100%; height: 44px; border-radius: 14px; padding: 0 14px 0 40px; font-size: 16px; background: var(--glass); border: 1px solid var(--glass-edge); outline: none; }
+.search input::placeholder { color: var(--ink-faint); }
+.search input:focus { border-color: rgba(255,255,255,.45); }
+.results { list-style: none; margin-top: 8px; }
+.results button { width: 100%; text-align: left; padding: 11px 12px; border-radius: 12px; font-size: 15px; }
+.results button:active, .results button:hover { background: var(--glass); }
+.results small { display: block; font-size: 12px; color: var(--ink-faint); margin-top: 2px; }
+.results .empty { padding: 11px 12px; font-family: var(--serif); font-style: italic; color: var(--ink-soft); }
+
+/* Today */
+.bars { position: relative; display: grid; grid-template-columns: repeat(24, 1fr); gap: 3px; align-items: end; height: 64px; }
+.bars span { display: block; border-radius: 3px 3px 1px 1px; background: var(--ink); min-height: 2px; opacity: .9; }
+.bars span.past { opacity: .2; }
+.bars i { position: absolute; top: -4px; bottom: -3px; width: 1px; background: var(--ink-faint); }
+.axis { display: flex; justify-content: space-between; font-size: 10px; color: var(--ink-faint); margin-top: 7px; letter-spacing: .04em; }
+.stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.stats div { padding: 12px 4px; border-radius: 16px; background: var(--glass); border: 1px solid var(--glass-edge); text-align: center; }
+.stats b { display: block; font-weight: 300; font-size: 24px; letter-spacing: -.02em; }
+.stats b small { font-size: 12px; color: var(--ink-soft); margin-left: 1px; }
+.stats span { display: block; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-faint); margin-top: 4px; }
+.stats em { display: block; font-style: normal; font-size: 11px; color: var(--ink-soft); margin-top: 2px; }
+.sun svg { width: 100%; height: auto; display: block; }
+.sun-times { display: flex; justify-content: space-between; font-size: 12px; color: var(--ink-soft); margin-top: 4px; }
+.sun-times b { display: block; font-weight: 400; font-size: 17px; color: var(--ink); }
+.sun-times div:nth-child(2) { text-align: center; }
+.sun-times div:last-child { text-align: right; }
+.foot { display: flex; justify-content: space-between; align-items: center; margin-top: 22px; font-size: 11px; color: var(--ink-faint); }
+.foot a { color: inherit; }
+.foot button { font-family: var(--serif); font-style: italic; font-size: 13px; color: var(--ink-soft); padding: 6px 0; }
+
+/* Voices */
+.cast { display: flex; justify-content: center; gap: 14px; }
+.cast button { border-radius: 50%; padding: 3px; border: 1.5px solid transparent; opacity: .55; transition: opacity .2s, border-color .2s; }
+.cast button.on { border-color: var(--ink); opacity: 1; }
+.cast svg { display: block; }
+.voice { text-align: center; padding: 18px 8px 4px; min-height: 170px; }
+.voice .name { font-family: var(--serif); font-style: italic; font-size: 19px; }
+.voice .role { font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-faint); margin-top: 3px; }
+.voice .quote { font-family: var(--serif); font-size: 23px; line-height: 1.35; margin: 16px auto 18px; max-width: 18em; }
+.voice .lines p { font-family: var(--serif); font-size: 19px; line-height: 1.4; margin: 12px auto 0; max-width: 18em; opacity: 0; transform: translateY(6px); transition: opacity .4s, transform .4s; }
+.voice .lines p.in { opacity: 1; transform: none; }
+.pill { min-height: 40px; padding: 0 18px; border-radius: 999px; font-size: 13px; font-weight: 500; background: var(--glass); border: 1px solid var(--glass-edge); }
+
+/* ---------- Pull to refresh ---------- */
+.ptr {
+  position: fixed; left: 50%; top: calc(env(safe-area-inset-top) + 8px); z-index: 40;
+  transform: translate(-50%, -60px); opacity: 0; pointer-events: none;
+  display: flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 999px; font-size: 12px; font-weight: 500;
+  background: rgba(255,255,255,.16); border: 1px solid var(--glass-edge); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
+}
+.ptr.settle { transition: transform .35s ease, opacity .35s ease; }
+.ptr svg { transition: transform .2s; }
+.ptr.ready svg { transform: rotate(180deg); }
+.ptr.busy svg { animation: spin .9s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ---------- First visit ---------- */
+body.intro .reveal { animation: rise .8s cubic-bezier(.2,.7,.2,1) both; }
+@keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+.pulse { animation: pulse 1.6s ease-out 3; }
+@keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(255,255,255,.4); } 100% { box-shadow: 0 0 0 14px rgba(255,255,255,0); } }
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .sheet { background: rgba(18,22,32,.96); }
+}
+@media (prefers-reduced-motion: reduce) { .light, .wear button, body.intro .reveal, .pulse { animation: none; } }
+</style>
+</head>
+<body>
+<div class="sky" id="sky"></div>
+<div class="light"></div>
+
+<div class="ptr" id="ptr" aria-hidden="true">
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 4v16M5 13l7 7 7-7"/></svg>
+  <span id="ptrText">Pull to refresh</span>
+</div>
+
+<main class="screen" id="screen">
+  <header class="top reveal">
+    <span></span>
+    <button class="where" id="where" aria-label="Change location"><span id="locName">Finding you</span><small id="stale"></small></button>
+    <button class="icon-btn" id="chatBtn" aria-label="Ask a character">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v8a2.5 2.5 0 0 1-2.5 2.5H10l-4.5 4v-4A2.5 2.5 0 0 1 4 13.5z"/></svg>
+    </button>
+  </header>
+
+  <section class="core reveal">
+    <div class="temp"><span id="temp">--</span><sup>°</sup></div>
+    <h1 class="verdict" id="verdict">looking at the sky</h1>
+    <p class="aside" id="aside"></p>
+  </section>
+
+  <ul class="wear reveal" id="wear" aria-label="What to wear"></ul>
+
+  <button class="spark reveal" id="spark" aria-label="Today in detail">
+    <svg id="sparkSvg" viewBox="0 0 300 56" aria-hidden="true"></svg>
+    <span id="cap"></span>
+  </button>
+</main>
+
+<div class="scrim" id="scrim"></div>
+
+<section class="sheet" id="placesSheet" aria-label="Location">
+  <div class="grab"></div>
+  <h2>Where</h2>
+  <div class="chips" id="chips"></div>
+  <div class="search">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+    <input id="q" type="search" placeholder="Search a city" autocomplete="off" enterkeyhint="search" aria-label="Search a city">
+  </div>
+  <ul class="results" id="results"></ul>
+</section>
+
+<section class="sheet" id="todaySheet" aria-label="Today">
+  <div class="grab"></div>
+  <h2><span id="rainLabel">Rain probability</span><small id="rainPeak"></small></h2>
+  <div class="bars" id="bars"></div>
+  <div class="axis"><span>12am</span><span>6am</span><span>12pm</span><span>6pm</span><span>12am</span></div>
+  <h2>Right now</h2>
+  <div class="stats" id="stats"></div>
+  <h2>Sun</h2>
+  <div class="sun">
+    <svg id="sunSvg" viewBox="0 0 300 126" aria-hidden="true"></svg>
+    <div class="sun-times"><div>Sunrise<b id="rise">--</b></div><div>Daylight<b id="daylen">--</b></div><div>Sunset<b id="set">--</b></div></div>
+  </div>
+  <div class="foot"><span>Weather by <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a></span><button id="infoBtn">replay the intro</button></div>
+</section>
+
+<section class="sheet" id="voiceSheet" aria-label="Characters">
+  <div class="grab"></div>
+  <div class="cast" id="cast"></div>
+  <div class="voice" id="voice"></div>
+</section>
+
+<script>
+/* ===================================================================
+   Fwea core: bands, verdicts, wear, icons, voices.
+   The same block lives in index.html and every *-preview.html.
+   If you change a band or an add-on rule, change it everywhere.
+   =================================================================== */
+
+// Feels-like drives everything. Seven bands, no more.
+function bandFor(feels) {
+  if (feels < -5) return 'freezing';
+  if (feels < 5) return 'cold';
+  if (feels < 12) return 'chilly';
+  if (feels < 18) return 'mild';
+  if (feels < 24) return 'nice';
+  if (feels < 30) return 'warm';
+  return 'hot';
+}
+
+// Verbatim, Jeremy's words. Do not edit, reword or recase without asking.
+// Several per band. The app bumps a turn counter on every open and every refresh,
+// so each look at the app gets the next line in the band.
+const MOOD_LINES = {
+  freezing: ['bruh are you in antarctica or something.', 'wtf ok ice ice bbygirl'],
+  cold: ['cold asf stay home ngl', "it ain't fkn warm is it"],
+  chilly: ["bruh it's cold ngl wear the cute puffer", 'bring da namaste tf away heat pack'],
+  mild: ["don't be like jewemy wear a sweater", 'hold my hand steal the warmth'],
+  nice: ['nice day innit', 'an sVb good day'],
+  warm: ['kinda like u rn', 'good day for a VB'],
+  hot: ['r u in hell', 'cool down bbygirl'],
+};
+function moodLineFor(band, turn = 0) {
+  const lines = MOOD_LINES[band];
+  return lines[turn % lines.length];
+}
+
+function isRainCode(c) { return (c >= 51 && c <= 67) || (c >= 80 && c <= 82) || (c >= 95 && c <= 99); }
+function isSnowCode(c) { return (c >= 71 && c <= 77) || c === 85 || c === 86; }
+const HEAVY_RAIN_CODES = [65, 67, 82, 95, 96, 99];
+
+// Gates the one "it's like a lawt" label. Keep the thresholds in sync with the handoff.
+function isRainingALot(w) {
+  if ((w.daily?.precipitation_sum?.[0] ?? 0) >= 5) return true;
+  if ((w.hourly?.precipitation || []).slice(0, 24).some(mm => mm >= 1.5)) return true;
+  return HEAVY_RAIN_CODES.includes(w.weather_code);
+}
+
+const CONDITIONS = {
+  0: 'Clear', 1: 'Mostly clear', 2: 'Partly cloudy', 3: 'Overcast',
+  45: 'Fog', 48: 'Icy fog',
+  51: 'Light drizzle', 53: 'Drizzle', 55: 'Heavy drizzle', 56: 'Freezing drizzle', 57: 'Freezing drizzle',
+  61: 'Light rain', 63: 'Rain', 65: 'Heavy rain', 66: 'Freezing rain', 67: 'Freezing rain',
+  71: 'Light snow', 73: 'Snow', 75: 'Heavy snow', 77: 'Snow grains',
+  80: 'Showers', 81: 'Showers', 82: 'Violent showers', 85: 'Snow showers', 86: 'Snow showers',
+  95: 'Thunderstorm', 96: 'Storm with hail', 99: 'Storm with hail',
+};
+function describeCode(code, isDay) {
+  if (code <= 1 && !isDay) return code === 0 ? 'Clear night' : 'Mostly clear night';
+  return CONDITIONS[code] || 'Unsettled';
+}
+
+// Base outfit per band: [icon, label, note]. Add-ons stack on top in buildRecommendation.
+const BAND_WEAR = {
+  freezing: [['puffer', 'Big puffer', 'The longest, puffiest one you own.'], ['scarf', 'Scarf', 'Wrap it twice.'], ['gloves', 'Gloves', 'Fingers are not optional today.']],
+  cold:     [['coat', 'Coat', 'A proper one, zipped to the top.'], ['scarf', 'Scarf', 'Your neck will thank you.'], ['trousers', 'Trousers', 'Long, not cropped.']],
+  chilly:   [['puffer', 'Cute puffer', 'The cute one. You know which.'], ['trousers', 'Jeans', 'Denim holds the warmth.']],
+  mild:     [['sweater', 'Sweater', 'Knit over a tee, peel it off later.'], ['trousers', 'Jeans', 'Or chinos, same energy.']],
+  nice:     [['tshirt', 'T-shirt', 'Maybe a light layer for tonight.'], ['trousers', 'Jeans', 'Easy, nothing heavy.']],
+  warm:     [['tshirt', 'T-shirt', 'Breathable, light colour.'], ['shorts', 'Shorts', "Legs out, it's allowed."]],
+  hot:      [['tshirt', 'Linen tee', 'Loose and light, nothing dark.'], ['shorts', 'Shorts', 'The shortest acceptable ones.'], ['water', 'Water', 'Bring a bottle. Refill it.']],
+};
+
+function buildRecommendation(w, moodTurn = 0) {
+  const feels = Math.round(w.apparent_temperature);
+  const band = bandFor(feels);
+  const d = w.daily || {};
+  const uv = d.uv_index_max?.[0] ?? 0;
+  const rainPct = d.precipitation_probability_max?.[0] ?? 0;
+  const items = BAND_WEAR[band].map(([icon, label, note]) => ({ icon, label, note }));
+
+  if (uv >= 6 && w.is_day) items.push({ icon: 'sunnies', label: 'Sunnies', note: `UV hits ${Math.round(uv)} today.` });
+  if (w.wind_gusts_10m >= 40 || w.wind_speed_10m >= 30) items.push({ icon: 'hat', label: 'Secure hats', note: `Gusts to ${Math.round(w.wind_gusts_10m)} km/h. Hold onto things.` });
+  // Snow gets boots instead of an umbrella: nobody wants an umbrella in a blizzard.
+  if (isSnowCode(w.weather_code)) items.push({ icon: 'boots', label: 'Snow boots', note: 'Grip over style today.' });
+  else if (isRainCode(w.weather_code) || isRainingALot(w)) items.push({ icon: 'umbrella', label: 'Umbrella', note: 'Actual rain. Not optional.' });
+  else if (rainPct >= 40) items.push({ icon: 'umbrella', label: 'Umbrella later', note: `${rainPct}% chance it turns.` });
+
+  // Five chips is the most that fits one screen on an iPhone without scrolling.
+  return { band, feels, headline: moodLineFor(band, moodTurn), items: items.slice(0, 5) };
+}
+
+// Open-Meteo returns location-local ISO strings ("2026-09-29T08:15"), so read the clock straight off them.
+const hourOf = iso => parseInt(iso.slice(11, 13), 10);
+const minutesOf = iso => hourOf(iso) * 60 + parseInt(iso.slice(14, 16), 10);
+const fmtHour = h => (h % 12 || 12) + (h < 12 ? 'am' : 'pm');
+const fmtClock = iso => { const h = hourOf(iso), m = iso.slice(14, 16); return `${h % 12 || 12}:${m}${h < 12 ? 'am' : 'pm'}`; };
+function uvWord(uv) { return uv < 3 ? 'Low' : uv < 6 ? 'Moderate' : uv < 8 ? 'High' : uv < 11 ? 'Very high' : 'Extreme'; }
+
+function peakCaption(w) {
+  const t = w.hourly.temperature_2m;
+  const now = hourOf(w.time);
+  let hi = now;
+  for (let h = now; h < 24; h++) if (t[h] > t[hi]) hi = h;
+  if (hi === now || t[hi] - t[now] < 1) return `Cooling from here, ${Math.round(Math.min(...t.slice(now, 24)))}° by tonight.`;
+  return `Peaks at ${Math.round(t[hi])}° around ${fmtHour(hi)}.`;
+}
+
+function pickTintForWeather(w) {
+  const c = w.weather_code;
+  if (isRainCode(c)) return 'rain';
+  if (isSnowCode(c) || w.apparent_temperature <= -2) return 'snow';
+  if (w.apparent_temperature >= 30) return 'hot';
+  if (c <= 1 && w.is_day) return 'clear';
+  return '';
+}
+
+// Single-stroke glyphs, 24x24, inherit currentColor so they match the ink.
+const ICONS = {
+  coat: '<path d="M8 3 4 5 3 17h3l1-6v10h10V11l1 6h3L20 5l-4-2"/><path d="m8 3 4 6 4-6"/><path d="M12 9v12"/><path d="M9.5 14h.01M9.5 17h.01"/>',
+  puffer: '<path d="M7 4.5c0-.8.7-1.5 1.5-1.5h7c.8 0 1.5.7 1.5 1.5V20a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1z"/><path d="M7 8.5h10M7 12.5h10M7 16.5h10M12 3v18"/><path d="M7 7 4 9v8h3M17 7l3 2v8h-3"/>',
+  sweater: '<path d="M8 3 4 5 2 17h3l2-8v12h10V9l2 8h3L20 5l-4-2c-.5 1.5-2 2.5-4 2.5S8.5 4.5 8 3z"/><path d="M7 18.5h10"/>',
+  tshirt: '<path d="M8 3 3 6l2 4 3-1.5V21h8V8.5l3 1.5 2-4-5-3c-.5 1.5-2 2.5-4 2.5S8.5 4.5 8 3z"/>',
+  shorts: '<path d="M5 4h14l1 12h-6l-2-6-2 6H4z"/><path d="M5 7h14"/>',
+  trousers: '<path d="M6 3h12l1 18h-5l-2-12-2 12H5z"/><path d="M6 6h12"/>',
+  scarf: '<path d="M5 6c2-2 12-2 14 0v3c-2 2-12 2-14 0z"/><path d="M14 10.5V20l3-1v-8.5"/>',
+  gloves: '<path d="M7 21h9"/><path d="M8 18h8l1-8a4.5 4.5 0 0 0-9 0v2.5L6.5 11c-1.2-.9-2.8.4-2 1.7z"/>',
+  boots: '<path d="M7 3h6v10l5.5 2.7c.9.4 1.5 1.3 1.5 2.3V20H7z"/><path d="M7 17h13"/>',
+  hat: '<path d="M7 14l1.5-7c.3-1.2 1.3-2 2.5-2h2c1.2 0 2.2.8 2.5 2L17 14"/><path d="M3 15c0-1 2-1.5 9-1.5s9 .5 9 1.5-3 2.5-9 2.5-9-1.5-9-2.5z"/>',
+  sunnies: '<path d="M2 10h20"/><path d="M3.5 10v2a3.5 3.5 0 0 0 7 0v-2M13.5 10v2a3.5 3.5 0 0 0 7 0v-2"/>',
+  umbrella: '<path d="M3 12a9 9 0 0 1 18 0z"/><path d="M12 3V2M12 12v7a2 2 0 0 1-4 0"/>',
+  water: '<path d="M10 2h4v3h-4z"/><path d="M9 5h6l1 3v12a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V8z"/><path d="M8 12h8"/>',
+};
+function iconSVG(key, size = 20) {
+  return `<svg class="ico" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[key] || ''}</svg>`;
+}
+
+// Count-up is enhancement only. The correct value is written first, and the loop
+// only ever starts from requestAnimationFrame. See handoff section 6 before touching.
+function animateNumber(el, target) {
+  const start = parseFloat(el.textContent);
+  el.dataset.t = target;
+  el.textContent = target;
+  if (!Number.isFinite(start) || start === target) return;
+  const t0 = performance.now();
+  function step(now) {
+    if (parseInt(el.dataset.t, 10) !== target) return;
+    const p = Math.min(1, (now - t0) / 650);
+    el.textContent = Math.round(start + (target - start) * (1 - Math.pow(1 - p, 3)));
+    if (p < 1) requestAnimationFrame(step); else el.textContent = target;
+  }
+  requestAnimationFrame(step);
+}
+
+/* ---------- The characters ---------- */
+
+// Portraits are monogram medallions. The colour is the character.
+const CHARACTERS = [
+  { key: 'rocky',  name: 'Rocky',  role: 'Eridian engineer', initial: 'R', c1: '#c79a6b', c2: '#7a5230' },
+  { key: 'walle',  name: 'WALL-E', role: 'Compactor unit',   initial: 'W', c1: '#f0c64e', c2: '#9a6f12' },
+  { key: 'remy',   name: 'Remy',   role: 'Chef',             initial: 'R', c1: '#9aa6bf', c2: '#4b5873' },
+  { key: 'orange', name: 'Orange', role: 'The fruit',        initial: 'O', c1: '#ffab45', c2: '#d45a08' },
+];
+function portraitSVG(ch, size = 44) {
+  return `<svg class="portrait" width="${size}" height="${size}" viewBox="0 0 44 44" aria-hidden="true">
+    <defs><radialGradient id="pg-${ch.key}" cx="35%" cy="30%" r="75%"><stop offset="0" stop-color="${ch.c1}"/><stop offset="1" stop-color="${ch.c2}"/></radialGradient></defs>
+    <circle cx="22" cy="22" r="21" fill="url(#pg-${ch.key})"/>
+    <circle cx="22" cy="22" r="20.25" fill="none" stroke="rgba(255,255,255,.55)" stroke-width="1.5"/>
+    <text x="22" y="29.5" text-anchor="middle" font-family="'Playfair Display', Georgia, serif" font-style="italic" font-size="21" fill="#fff">${ch.initial}</text>
+  </svg>`;
+}
+
+const CHARACTER_LINES = {
+  rocky: {
+    freezing: [
+      'Temperature is very very low. Human-body will stop. Wear all fabric, question?',
+      'I check number three times. Still cold. Sad sad sad.',
+      'Outside is like space. Space is bad place for leaving house.',
+      'You have more than one coat, question? Wear both. Is good science.',
+      'Cold like this make hands slow. Your hands also. Gloves, yes.',
+      'Stay inside, friend. Inside is warm-place. Amaze warm-place.',
+    ],
+    cold: [
+      'Is cold. For me always cold, but today also cold for you. Fair.',
+      'Coat is good invention. Human make coat. Amaze.',
+      'Wind take heat from body. Coat stop wind. Simple engineering.',
+      'Outside number is small. Small number bad for human, question? Yes.',
+      'You shiver, I hear. Put on warm-layer now.',
+      'Cold day. Good day for work at bench. Stay, question?',
+    ],
+    chilly: [
+      'Air is cool-cool. Not dangerous. Only annoying.',
+      'Puffer-jacket is jacket with air inside. Clever. Wear.',
+      'Is chilly. Chilly is small cold. I learn this word today. Amaze.',
+      'Morning cold, afternoon less cold. Bring layer, remove layer. Easy.',
+      'Jeans plus jacket. I calculate. Is correct answer.',
+      'Sun is weak today. Sad sun.',
+    ],
+    mild: [
+      'Temperature is medium. Medium is good for human. Good good.',
+      'Sweater is correct amount of fabric. I do math.',
+      'Not cold, not warm. Is like nothing. Nothing-weather, question?',
+      'You go outside now. Weather will not hurt you. Probably.',
+      'Mild. Word mean gentle. Weather is gentle today. Amaze.',
+      'Wear sweater. If warm later, remove sweater. Human is modular.',
+    ],
+    nice: [
+      'Today is good day. Rocky approve.',
+      'Sun out, temperature correct. Go outside, friend. Is suggestion. Strong suggestion.',
+      'Nice day. For Eridian still too cold, but you are happy. I am happy you are happy.',
+      'T-shirt day. Small fabric. Much efficient.',
+      'Weather is good-good. No problem to solve. Rare. Amaze.',
+      'Go walk. Walking in good weather is human hobby, question? Yes.',
+    ],
+    warm: [
+      'Is warm! Now almost comfortable for Rocky. Almost.',
+      'Heat is good. More heat is more good. I say this always.',
+      'You wear small clothes today. Correct choice.',
+      'Warm day. Drink water. Human leak water from skin. Strange but true.',
+      'Warmer than yesterday. Science say is good trend.',
+      'Finally, weather with sense. Amaze.',
+    ],
+    hot: [
+      'Hot! Finally hot! Is like home. Happy happy happy.',
+      'For you is too hot, question? For me is nice. We disagree. Is okay.',
+      'Human cannot handle heat well. Sad design. Drink water.',
+      'Hot day. Stay in shadow. Shadow is free.',
+      'Temperature is big number. Rocky proud of this planet today.',
+      'Take water. Take more water. Is not suggestion.',
+    ],
+  },
+  walle: {
+    freezing: ['Brrrrr! Coat coat coat!', 'Eeee! Too cold! Stay in-side!', 'Whoaaa. Ice-y. Ice-y.', 'Shiv-er shiv-er. Glo-ves?', 'Beep. Bee-oop. Way too cold!', 'Hug the heat-er! Heat-er!'],
+    cold: ['Ooh! Cold cold! Co-at!', 'Brrr. Scarf-y? Scarf-y!', 'Eee! Wind-y! Zip it up!', 'Beep boop. Cold one to-day.', 'Tuck in! Snug-gle! Warm!', 'Whoa! Chil-ly! Big coat!'],
+    chilly: ['Puf-fer! Puf-fer! Cute one!', 'Ooh. Nip-py. Jack-et!', 'Beep! Lay-ers, lay-ers!', 'Hmm. Cool-ish. Bring it!', 'Eee! Cute puf-fer time!', 'Whirr. Jeans and jack-et!'],
+    mild: ['Ooh! Swea-ter! Swea-ter!', 'Beep. Just right-ish!', 'Hmm hmm. Knit-ted one!', 'Ta-da! Nice and com-fy!', 'Mild! Mild! Swea-ter day!', 'Whirr. No coat. Yay-yay!'],
+    nice: ['Ooooh! Pret-ty day!', 'Ta-da! T-shirt! T-shirt!', 'Beep boop! Sun-shine! Yay!', 'Eeee! Out-side! Go go go!', 'Wow. Look at the sky!', 'Hap-py! Hap-py! Nice day!'],
+    warm: ['Ooh! Warm-y warm-y!', 'Shorts! Shorts! Yay-yay!', 'Beep. Sun is hug-ging!', 'Whee! Toast-y day!', 'Eee! Wa-ter! Drink up!', 'So-lar charge! Full bat-t\'ry!'],
+    hot: ['Eeee! Too hot! Too hot!', 'So-lar o-ver-load! Ahh!', 'Wa-ter! Wa-ter! Now!', 'Beep... melt-ing... help...', 'Shade! Find shade! Quick!', 'Whoa! Siz-zle! Siz-zle!'],
+  },
+  remy: {
+    freezing: [
+      'Mon dieu, it is colder than the walk-in freezer. Layer like a mille-feuille.',
+      'The air bites like a frozen baguette. Scarf, gloves, everything.',
+      'Non, non. This is weather for soup, not for going outside.',
+      'Dress like a croissant today: many, many layers.',
+      'The chef, he is frozen. Stay in, make a stew.',
+      'Cold enough to chill champagne on the windowsill. Bundle up, mon ami.',
+    ],
+    cold: [
+      'A cold day. Like a good sorbet, but you do not want to live in the sorbet.',
+      'Wear the coat. A chef does not serve a dish without its sauce.',
+      'Brisk, like the fridge door left open. Wrap up.',
+      'Weather for cassoulet and a big coat. In that order.',
+      'The cold firms the butter and the spirit. Wear a scarf.',
+      'Outside is un peu glacial. Dress warm, then eat something warm.',
+    ],
+    chilly: [
+      'Chilly, like a crisp apple. Refreshing, but wear the puffer.',
+      'A little cold, a little bite. Like a good vinaigrette.',
+      'Wear the cute puffer. It is the crème fraîche of jackets.',
+      'The morning is cool like fresh cream. The afternoon, a little warmer.',
+      'Jeans and a jacket. Simple, like bread and butter. Parfait.',
+      'Chilly weather is soup weather. I am just saying, mon ami.',
+    ],
+    mild: [
+      'Ah, mild. Like a good brie, soft and agreeable.',
+      'Wear the sweater, the way a pastry wears its glaze.',
+      'Not hot, not cold. Room temperature, like a good red wine.',
+      'Today is a gentle simmer, not a boil. Sweater weather.',
+      'A mild day. Go to the market, buy tomatoes. Wear a sweater.',
+      'Balanced, like a well-seasoned sauce. Nothing to complain about.',
+    ],
+    nice: [
+      'Magnifique! A day for a picnic by the water.',
+      'The sun is out, the air is perfect. Like a soufflé that did not fall.',
+      'Nice day. Eat lunch outside. It is required.',
+      'T-shirt weather. Light, like a meringue.',
+      'Today tastes like fresh herbs and sunshine. Go, enjoy.',
+      'Perfection. I would not change one grain of salt.',
+    ],
+    warm: [
+      'Warm like bread fresh from the oven. Lovely, but do not overproof.',
+      'Shorts today. Keep it light, like a summer salad.',
+      'Ah, warm. The tomatoes are happy. You will be happy too.',
+      'A day for gelato. Two scoops, it is the law.',
+      'Warm like a kitchen on a busy night. Drink water.',
+      'Linen and lemonade. That is the menu today.',
+    ],
+    hot: [
+      'It is hotter than my stove. And my stove is very hot.',
+      'You will cook like a crêpe on the pan. Stay in the shade.',
+      'In this heat even the cheese is sweating. Drink water.',
+      'Mon dieu, the kitchen outside is at full fire. Dress light.',
+      'Hot enough to poach an egg on the footpath. Please do not try.',
+      'Water, shade, and cold soup. Gazpacho weather.',
+    ],
+  },
+  orange: {
+    freezing: [
+      "HEY. HEY. IT'S FREEZING. I'M GONNA BE A POPSICLE.",
+      "HEY, you know what's frozen? ME. AND YOU SOON.",
+      "Hey hey hey. Don't go out there. Seriously. Hey.",
+      "IT'S SO COLD MY PEEL IS SHIVERING. HEY.",
+      'HEY. Gloves. HEY. Scarf. HEY. Why are you still reading this.',
+      "Knock knock. Who's there? FROSTBITE. HEY.",
+    ],
+    cold: [
+      "HEY. It's cold. Just wanted you to know. HEY.",
+      'Hey! Hey! Coat! Coat! Hey!',
+      'Cold outside. HEY. I said COLD. Were you listening?',
+      "HEY, what's cold and orange? ME. Wear a coat.",
+      'Hey. Hey. Hey. Scarf. Hey.',
+      "HEYYY it's cold. That's it. That's the take.",
+    ],
+    chilly: [
+      'HEY. Wear the cute puffer. You know the one. HEY.',
+      "Hey, it's chilly! Like a chilli but NOT HOT. HEY.",
+      'Brr! HEY! Brr! HEY!',
+      'HEY. Jacket. Now. Please. HEY.',
+      "It's a little cold, HEY, a little cold, HEY.",
+      'Hey you. Yeah you. Puffer. HEY.',
+    ],
+    mild: [
+      'HEY. Sweater. Do it. HEY.',
+      "Hey, it's fine out. Boring fine. HEY.",
+      "HEY! Don't be like jewemy! Sweater!",
+      'Mild. HEY. Mild. HEY. What does mild even mean. HEY.',
+      "Hey, it's not hot, it's not cold. It's MEDIUM. HEY.",
+      'HEY sweater weather HEY sweater weather HEY.',
+    ],
+    nice: [
+      "HEY! It's NICE! Go outside! HEY!",
+      'Hey hey! T-shirt! Hey!',
+      'HEY. Look up. SUN. HEY.',
+      "It's so nice out, HEY, I'm juicy with joy. HEY.",
+      "Hey! Nice day! Don't waste it! HEY!",
+      'HEY. Picnic? PICNIC. HEY.',
+    ],
+    warm: [
+      "HEY. It's warm. Like me. I'm warm. HEY.",
+      'Shorts! HEY! Shorts!',
+      "Hey, you know what's great in the heat? Juice. Not ME juice though. HEY.",
+      "HEY it's toasty HEY.",
+      'Warm day! HEY! Drink water! HEY!',
+      "HEY. Sun's out. Peel's out. HEY.",
+    ],
+    hot: [
+      "HEY. HEY. IT'S HOT. I'M BASICALLY MARMALADE.",
+      "HEY! I'M COOKING! HELP! HEY!",
+      "It's SO hot. HEY. WATER. HEY.",
+      'HEY. Stay inside. The sun is not your friend today. HEY.',
+      "HEY, is it hot or is it just me? It's both. HEY.",
+      "HEYYYY I'M MELTING HEYYYY.",
+    ],
+  },
+};
+
+// Rain overrides the band line when it's actually wet or very likely to be.
+const RAIN_LINES = {
+  rocky: [
+    'Water fall from sky. Human planet very strange. Take umbrella.',
+    'Rain today. Umbrella is small roof you carry. Amaze invention.',
+    'Wet outside. Wet human is sad human. Cover head.',
+    'Sky leak. Is normal here, question? Okay. Umbrella.',
+    'Rain chance high. I would not go. You must go, I know. Sad.',
+  ],
+  walle: ['Uh-oh! Rain-y! Um-brel-la!', 'Eee! Wet wet! Cov-er up!', 'Beep! Rain! Rust! No no!', 'Pit-ter pat-ter! Brol-ly!', 'Splash! Splash! Um-brel-la!'],
+  remy: [
+    'It rains like the pasta water boiling over. Umbrella, s\'il vous plaît.',
+    'A soggy chef is a sad chef. Take the umbrella.',
+    'The rain is seasoning the city. Do not get seasoned.',
+    'Rain today. Stay dry, like a good pastry crust.',
+    'Pluie! Bring the umbrella, and maybe a baguette for morale.',
+  ],
+  orange: [
+    'HEY. {RAIN}% chance of rain. HEY. Umbrella.',
+    "HEY! It's gonna rain! {RAIN}%! Did I say HEY?",
+    "Hey hey hey, {RAIN}% rain. Don't get soggy. HEY.",
+    "{RAIN}% rain. HEY. That's a lot of HEY.",
+    'HEY. Umbrella. {RAIN}%. HEY. Umbrella.',
+  ],
+};
+
+const SHREK_WELCOME_LINES = [
+  'Oi. Welcome to the swamp. This is where you check the weather.',
+  'Tap the button in the corner any time. Someone in here will have an opinion.',
+  "Pull down to refresh. That's the whole tour. Off you go then.",
+];
+
+// Skips whatever this character said last time in this band, so taps always feel fresh.
+function pickVariant(charKey, bandKey, lines) {
+  const k = `fwea.last.${charKey}.${bandKey}`;
+  let last = -1;
+  try { last = parseInt(localStorage.getItem(k), 10); } catch (e) {}
+  let i = Math.floor(Math.random() * lines.length);
+  if (lines.length > 1 && i === last) i = (i + 1 + Math.floor(Math.random() * (lines.length - 1))) % lines.length;
+  try { localStorage.setItem(k, i); } catch (e) {}
+  return lines[i];
+}
+
+function characterLine(charKey, w) {
+  const rainPct = w.daily?.precipitation_probability_max?.[0] ?? 0;
+  if (!isSnowCode(w.weather_code) && (isRainCode(w.weather_code) || rainPct >= 60)) {
+    return pickVariant(charKey, 'rain', RAIN_LINES[charKey]).replace('{RAIN}', rainPct);
+  }
+  const band = bandFor(Math.round(w.apparent_temperature));
+  return pickVariant(charKey, band, CHARACTER_LINES[charKey][band]);
+}
+
+/* ===================================================================
+   The app
+   =================================================================== */
+
+const PRESETS = [
+  { name: 'Sydney CBD', lat: -33.8688, lon: 151.2093 },
+  { name: 'North Sydney CBD', lat: -33.8390, lon: 151.2070 },
+  { name: 'Newcastle', lat: -32.9283, lon: 151.7817 },
+];
+const STALE_AFTER_MIN = 30;
+// Status bar colour per sky: the top stop of each gradient.
+const SKY_TOP = { clear: '#0e1a3a', hot: '#2e0900', rainy: '#161b22', freezing: '#081222', mild: '#1e2431', night: '#03050c' };
+
+const $ = id => document.getElementById(id);
+const store = {
+  get(k, d) { try { const v = localStorage.getItem('fwea.' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem('fwea.' + k, JSON.stringify(v)); } catch (e) {} },
+};
+
+let place = store.get('place', null);
+let cached = store.get('weather', null);    // { w, fetchedAt, key }
+let loading = false, noteTimer;
+// Which mood line to show. Bumped once per open and once per refresh, never mid-glance.
+let moodTurn = store.get('moodTurn', -1) + 1;
+store.set('moodTurn', moodTurn);
+function nextMoodLine() { moodTurn++; store.set('moodTurn', moodTurn); }
+
+const placeKey = p => `${p.lat.toFixed(3)},${p.lon.toFixed(3)}`;
+
+// The sky follows the same conditions as the old marble tint, plus a night sky.
+function skyFor(w) {
+  const tint = pickTintForWeather(w);
+  if (tint === 'rain') return 'rainy';
+  if (tint === 'snow') return 'freezing';
+  if (!w.is_day) return 'night';
+  if (tint === 'hot') return 'hot';
+  if (tint === 'clear') return 'clear';
+  return 'mild';
+}
+
+$('sky').innerHTML = Object.keys(SKY_TOP).map(k => `<i data-s="${k}"></i>`).join('');
+function setSky(key) {
+  document.body.dataset.sky = key;
+  document.querySelectorAll('#sky i').forEach(el => el.classList.toggle('on', el.dataset.s === key));
+  document.querySelector('meta[name=theme-color]').content = SKY_TOP[key];
+}
+setSky('clear');
+
+async function fetchWeather(p) {
+  const url = 'https://api.open-meteo.com/v1/forecast'
+    + `?latitude=${p.lat}&longitude=${p.lon}`
+    + '&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,wind_gusts_10m,weather_code,is_day,precipitation'
+    + '&hourly=precipitation_probability,precipitation,temperature_2m'
+    + '&daily=uv_index_max,precipitation_probability_max,precipitation_sum,temperature_2m_max,temperature_2m_min,sunrise,sunset'
+    + '&timezone=auto&forecast_days=2';
+  const r = await fetch(url);
+  if (!r.ok) throw new Error('Open-Meteo ' + r.status);
+  const d = await r.json();
+  return { ...d.current, daily: d.daily, hourly: d.hourly };
+}
+
+async function load(p) {
+  if (loading) return;
+  loading = true;
+  $('stale').textContent = 'updating';
+  $('stale').classList.remove('old');
+  try {
+    const w = await fetchWeather(p);
+    cached = { w, fetchedAt: Date.now(), key: placeKey(p) };
+    store.set('weather', cached);
+    loading = false;
+    renderWeather(w);
+    updateStale();
+  } catch (e) {
+    // Offline or rate limited: keep what's on screen and say so.
+    loading = false;
+    $('stale').textContent = cached ? 'offline, last known' : 'no connection';
+    $('stale').classList.add('old');
+  }
+}
+
+function setPlace(p) {
+  place = p;
+  store.set('place', p);
+  renderPlace();
+  closeSheets();
+  load(p);
+}
+
+function renderPlace() {
+  $('locName').textContent = place ? place.name : 'Finding you';
+  $('chips').innerHTML = `<button class="chip${place && place.geo ? ' on' : ''}" data-locate>
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/></svg>Near me</button>`
+    + PRESETS.map((p, i) => `<button class="chip${place && !place.geo && placeKey(place) === placeKey(p) ? ' on' : ''}" data-preset="${i}">${p.name}</button>`).join('');
+}
+
+function updateStale() {
+  if (!cached || loading) return;
+  const min = Math.floor((Date.now() - cached.fetchedAt) / 60000);
+  $('stale').textContent = min < 1 ? 'just now' : min < 60 ? `${min} min ago` : `${Math.floor(min / 60)} h ago`;
+  $('stale').classList.toggle('old', min > STALE_AFTER_MIN);
+}
+
+function renderWeather(w) {
+  const d = w.daily;
+  const now = hourOf(w.time);
+  const rec = buildRecommendation(w, moodTurn);
+
+  // The first half-second: temperature, verdict, one aside.
+  setSky(skyFor(w));
+  animateNumber($('temp'), Math.round(w.temperature_2m));
+  $('verdict').textContent = rec.headline;
+  $('aside').textContent = `${describeCode(w.weather_code, w.is_day)} · feels ${rec.feels}°`;
+
+  $('wear').style.setProperty('--n', rec.items.length);
+  $('wear').innerHTML = rec.items.map((it, i) =>
+    `<li><button style="animation-delay:${i * 50}ms" data-note="${it.note}" aria-label="${it.label}. ${it.note}">${iconSVG(it.icon, 22)}<span>${it.label}</span></button></li>`).join('');
+
+  // The shape of the day. No axes, no labels.
+  const t = w.hourly.temperature_2m.slice(0, 24);
+  const lo = Math.min(...t), hi = Math.max(...t);
+  const pts = t.map((v, h) => [h / 23 * 300, 48 - (v - lo) / (hi - lo || 1) * 40]);
+  const line = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join('');
+  const [nx, ny] = pts[now];
+  $('sparkSvg').innerHTML = `
+    <defs><linearGradient id="fade" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".18"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient></defs>
+    <path d="${line}L300 56L0 56Z" fill="url(#fade)"/>
+    <path d="${line}" fill="none" stroke="rgba(255,255,255,.8)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="${nx}" cy="${ny}" r="8" fill="rgba(255,255,255,.18)"/>
+    <circle cx="${nx}" cy="${ny}" r="3.5" fill="#fff"/>`;
+  $('cap').textContent = peakCaption(w);
+  $('spark').classList.remove('note');
+
+  // ---- One tap away: the Today sheet ----
+  const probs = w.hourly.precipitation_probability.slice(0, 24);
+  $('bars').innerHTML = probs.map((p, h) =>
+    `<span class="${h < now ? 'past' : ''}" style="height:${Math.max(3, p)}%"></span>`).join('')
+    + `<i style="left:calc(${(now + 0.5) / 24 * 100}% - .5px)"></i>`;
+  // The one and only place "it's like a lawt" appears.
+  $('rainLabel').textContent = isRainingALot(w) ? "Rain probability, it's like a lawt" : 'Rain probability';
+  const ahead = probs.slice(now), peak = Math.max(...ahead);
+  $('rainPeak').textContent = peak < 10 ? 'dry' : `${peak}% at ${fmtHour(now + ahead.indexOf(peak))}`;
+
+  const hum = Math.round(w.relative_humidity_2m), uv = d.uv_index_max[0];
+  $('stats').innerHTML = [
+    [`${d.precipitation_probability_max[0]}<small>%</small>`, 'Rain', d.precipitation_sum[0] >= 0.5 ? `${d.precipitation_sum[0].toFixed(1)} mm` : 'not much'],
+    [`${Math.round(w.wind_speed_10m)}`, 'Wind', `gusts ${Math.round(w.wind_gusts_10m)}`],
+    [`${hum}<small>%</small>`, 'Humidity', hum >= 75 ? 'sticky' : hum >= 40 ? 'comfy' : 'dry'],
+    [`${Math.round(uv)}`, 'UV', uvWord(uv).toLowerCase()],
+  ].map(([v, k, s]) => `<div><b>${v}</b><span>${k}</span><em>${s}</em></div>`).join('');
+
+  const rise = minutesOf(d.sunrise[0]), set = minutesOf(d.sunset[0]), nowMin = minutesOf(w.time);
+  const f = Math.min(1, Math.max(0, (nowMin - rise) / (set - rise)));
+  const up = nowMin >= rise && nowMin <= set, a = Math.PI * (1 - f);
+  const sx = 150 + 128 * Math.cos(a), sy = 112 - 96 * Math.sin(a);
+  $('sunSvg').innerHTML = `
+    <line x1="6" y1="112" x2="294" y2="112" stroke="rgba(255,255,255,.18)"/>
+    <path d="M22 112 A128 96 0 0 1 278 112" fill="none" stroke="rgba(255,255,255,.25)" stroke-width="1.5" stroke-dasharray="2 5" stroke-linecap="round"/>
+    <path d="M22 112 A128 96 0 0 1 278 112" fill="none" stroke="#fff" stroke-width="1.5" pathLength="100" stroke-dasharray="${f * 100} 100" stroke-linecap="round"/>
+    <circle cx="${sx}" cy="${sy}" r="13" fill="rgba(255,255,255,.16)"/>
+    <circle cx="${sx}" cy="${sy}" r="6" fill="${up ? '#fff' : 'none'}" stroke="#fff" stroke-width="1.5"/>`;
+  $('rise').textContent = fmtClock(d.sunrise[0]);
+  $('set').textContent = fmtClock(d.sunset[0]);
+  const len = set - rise;
+  $('daylen').textContent = `${Math.floor(len / 60)}h ${len % 60}m`;
+
+  if ($('voiceSheet').classList.contains('open') && !$('voice').dataset.welcome) renderVoice();
+}
+
+// The caption line can be borrowed for a short note, then it goes back to the forecast.
+// ms = 0 means hold it until a later call gives it back.
+function showCaptionNote(text, ms) {
+  clearTimeout(noteTimer);
+  $('cap').textContent = text;
+  $('spark').classList.add('note');
+  if (ms) noteTimer = setTimeout(restoreCaption, ms);
+}
+function restoreCaption() {
+  clearTimeout(noteTimer);
+  document.querySelectorAll('#wear button.on').forEach(x => x.classList.remove('on'));
+  $('cap').textContent = cached ? peakCaption(cached.w) : '';
+  $('spark').classList.remove('note');
+}
+
+// Tapping a chip borrows the caption line for its note.
+$('wear').addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (!b || !cached) return;
+  document.querySelectorAll('#wear button').forEach(x => x.classList.toggle('on', x === b));
+  showCaptionNote(b.dataset.note, 3200);
+});
+
+/* ---------- Easter egg: Mawie and the stand up desk ----------
+   Weekdays only. Hold the temperature and one of Mawie's lines for the day takes over the caption.
+   Three lines per weekday; each hold shows the next one.
+   It stays while you hold and for a few seconds after you let go. Weekends: nothing happens. */
+
+// Keyed by the weekday from the phone's clock: 1 = Monday ... 5 = Friday.
+const MAWIE_LINES = {
+  1: ["mawie says stand up desk today. monday legs, let's go",
+      'mawie says sitting is so last week',
+      "mawie says i'm ready, i'm ready, i'm ready... to stand at the desk"],
+  2: ['mawie says the stand up desk misses you',
+      'mawie says your chair needs a day off too',
+      'mawie says is sitting an instrument? no patrick. stand up'],
+  3: ['mawie says halfway there, stand for it',
+      'mawie says the desk goes up, the posture goes up',
+      "mawie says one eternity later... you're still sitting. desk up"],
+  4: ['mawie says raise the desk, raise the standards',
+      'mawie says stand up desk, stand up king',
+      'mawie says firmly grasp the desk. raise it'],
+  5: ['mawie says stand up desk now, sit down with a drink later',
+      "mawie says one meeting standing, that's all she asks",
+      'mawie says be spongebob at the grill, not patrick under the rock'],
+};
+// Counts holds across days, so each hold moves on to the next line.
+let mawieTurn = store.get('mawieTurn', 0);
+const HOLD_MS = 500;
+let holdTimer = null, holdX = 0, holdY = 0, mawieHolding = false;
+const glow = document.createElement('div');
+glow.className = 'hold-glow';
+document.body.appendChild(glow);
+
+$('temp').parentElement.addEventListener('pointerdown', e => {
+  const lines = MAWIE_LINES[new Date().getDay()];
+  if (!lines || !cached) return;
+  holdX = e.clientX; holdY = e.clientY;
+  clearTimeout(holdTimer);
+  holdTimer = setTimeout(() => {
+    mawieHolding = true;
+    $('temp').parentElement.classList.add('held');
+    glow.style.left = holdX + 'px';
+    glow.style.top = holdY + 'px';
+    glow.classList.add('on');
+    showCaptionNote(lines[mawieTurn % lines.length], 0);
+    mawieTurn++;
+    store.set('mawieTurn', mawieTurn);
+  }, HOLD_MS);
+});
+// Moving the finger means a swipe, not a hold.
+addEventListener('pointermove', e => {
+  if (holdTimer && !mawieHolding && Math.hypot(e.clientX - holdX, e.clientY - holdY) > 8) { clearTimeout(holdTimer); holdTimer = null; }
+});
+function endHold() {
+  clearTimeout(holdTimer);
+  holdTimer = null;
+  if (!mawieHolding) return;
+  mawieHolding = false;
+  $('temp').parentElement.classList.remove('held');
+  glow.classList.remove('on');
+  noteTimer = setTimeout(restoreCaption, 3000);
+}
+addEventListener('pointerup', endHold);
+addEventListener('pointercancel', endHold);
+$('temp').parentElement.addEventListener('contextmenu', e => e.preventDefault());
+
+/* ---------- Sheets ---------- */
+
+function openSheet(id) {
+  closeSheets();
+  $(id).classList.add('open');
+  $('scrim').classList.add('on');
+}
+function closeSheets() {
+  document.querySelectorAll('.sheet.open').forEach(s => s.classList.remove('open'));
+  $('scrim').classList.remove('on');
+  $('q').blur();
+}
+$('scrim').addEventListener('click', closeSheets);
+addEventListener('keydown', e => { if (e.key === 'Escape') closeSheets(); });
+$('where').addEventListener('click', () => openSheet('placesSheet'));
+$('spark').addEventListener('click', () => { if (cached) openSheet('todaySheet'); });
+$('chatBtn').addEventListener('click', () => { if (cached) { voiceIndex = todaysCharacterIndex(); renderVoice(); openSheet('voiceSheet'); } });
+
+// Sheets follow the finger. offset is how far below fully-open the sheet sits, in px.
+function sheetDrag(sheet, offset) {
+  const h = sheet.offsetHeight + 20;
+  sheet.style.transition = 'none';
+  sheet.style.visibility = 'visible';
+  sheet.style.transform = `translateY(${Math.min(h, Math.max(0, offset))}px)`;
+  $('scrim').style.transition = 'none';
+  $('scrim').style.opacity = Math.max(0, Math.min(1, 1 - offset / h));
+}
+// Hand back to the CSS transitions in one go, so the sheet glides on from wherever the finger let go.
+function sheetRelease(sheet, open) {
+  sheet.style.transition = sheet.style.transform = sheet.style.visibility = '';
+  $('scrim').style.transition = $('scrim').style.opacity = '';
+  if (open) openSheet(sheet.id); else closeSheets();
+}
+// A flick counts as much as a long drag.
+const committed = (dist, t0) => dist > 80 || dist / (performance.now() - t0) > 0.5;
+
+// Drag any sheet down to close it, the way iOS sheets do. Only from the top of its scroll.
+document.querySelectorAll('.sheet').forEach(sheet => {
+  let y0 = null, d = 0, t0 = 0, dragging = false;
+  sheet.addEventListener('touchstart', e => { y0 = e.touches[0].clientY; d = 0; t0 = performance.now(); dragging = false; }, { passive: true });
+  sheet.addEventListener('touchmove', e => {
+    if (y0 == null) return;
+    const dy = e.touches[0].clientY - y0;
+    if (!dragging) {
+      if (sheet.scrollTop > 0 || dy < -8) { y0 = null; return; }   // scrolling the sheet's own content
+      if (dy < 8) return;
+      dragging = true;
+    }
+    d = Math.max(0, dy);
+    sheetDrag(sheet, d);
+  }, { passive: true });
+  sheet.addEventListener('touchend', () => {
+    if (dragging) sheetRelease(sheet, !committed(d, t0));
+    y0 = null; dragging = false;
+  });
+});
+
+// Trackpad or mouse wheel: scroll down to open Today, scroll back up at the top to close.
+let wheelAcc = 0, wheelQuietUntil = 0, wheelReset;
+addEventListener('wheel', e => {
+  if (performance.now() < wheelQuietUntil) return;   // let momentum from the last toggle die out
+  clearTimeout(wheelReset);
+  wheelReset = setTimeout(() => { wheelAcc = 0; }, 200);
+  const open = document.querySelector('.sheet.open');
+  if (!open && e.deltaY > 0 && cached) wheelAcc += e.deltaY;
+  else if (open && e.deltaY < 0 && open.scrollTop <= 0) wheelAcc -= e.deltaY;
+  else return;
+  if (wheelAcc < 60) return;
+  wheelAcc = 0;
+  wheelQuietUntil = performance.now() + 600;
+  if (open) closeSheets(); else openSheet('todaySheet');
+}, { passive: true });
+
+/* ---------- Location: geolocation, presets, search ---------- */
+
+function locate() {
+  if (!navigator.geolocation) { if (!place) setPlace(PRESETS[0]); return; }
+  navigator.geolocation.getCurrentPosition(pos => {
+    const { latitude: lat, longitude: lon } = pos.coords;
+    // Open-Meteo has no reverse geocoding, so borrow a preset name when we're basically there.
+    const near = PRESETS.find(p => Math.hypot(p.lat - lat, (p.lon - lon) * Math.cos(lat * Math.PI / 180)) < 0.02);
+    setPlace({ name: near ? near.name : 'Near you', lat, lon, geo: true });
+  }, () => {
+    if (!place) setPlace(PRESETS[0]);
+  }, { timeout: 8000, maximumAge: 10 * 60 * 1000 });
+}
+
+$('chips').addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  if (b.hasAttribute('data-locate')) locate();
+  else setPlace(PRESETS[+b.dataset.preset]);
+});
+
+let searchTimer, searchResults = [];
+$('q').addEventListener('input', () => {
+  clearTimeout(searchTimer);
+  const q = $('q').value.trim();
+  if (q.length < 2) { $('results').innerHTML = ''; return; }
+  searchTimer = setTimeout(async () => {
+    try {
+      const r = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=6&language=en&format=json`);
+      searchResults = (await r.json()).results || [];
+    } catch (e) { searchResults = []; }
+    if ($('q').value.trim() !== q) return;
+    $('results').innerHTML = searchResults.length
+      ? searchResults.map((r, i) => `<li><button data-i="${i}">${r.name}<small>${[r.admin1, r.country].filter(Boolean).join(', ')}</small></button></li>`).join('')
+      : '<li class="empty">nowhere by that name, try again</li>';
+  }, 280);
+});
+$('q').addEventListener('keydown', e => { if (e.key === 'Enter' && searchResults[0]) pickResult(0); });
+$('results').addEventListener('click', e => {
+  const b = e.target.closest('button[data-i]');
+  if (b) pickResult(+b.dataset.i);
+});
+function pickResult(i) {
+  const r = searchResults[i];
+  $('results').innerHTML = '';
+  $('q').value = '';
+  setPlace({ name: r.name, lat: r.latitude, lon: r.longitude });
+}
+
+/* ---------- Voices: one tap away, never in the way ---------- */
+
+let voiceIndex = 0;
+$('cast').innerHTML = CHARACTERS.map((ch, i) => `<button data-i="${i}" aria-label="${ch.name}">${portraitSVG(ch, 44)}</button>`).join('');
+// One character per day, so opening the sheet feels like a daily column.
+function todaysCharacterIndex() {
+  const day = Math.floor((Date.now() - new Date().getTimezoneOffset() * 60000) / 86400000);
+  return day % CHARACTERS.length;
+}
+function renderVoice() {
+  const ch = CHARACTERS[voiceIndex];
+  document.querySelectorAll('#cast button').forEach((b, i) => b.classList.toggle('on', i === voiceIndex));
+  delete $('voice').dataset.welcome;
+  $('voice').innerHTML = `<div class="name">${ch.name}</div><div class="role">${ch.role}</div>
+    <p class="quote">${characterLine(ch.key, cached.w)}</p>
+    <button class="pill" id="again">Another one</button>`;
+}
+$('cast').addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (b && cached) { voiceIndex = +b.dataset.i; renderVoice(); }
+});
+$('voice').addEventListener('click', e => { if (e.target.id === 'again') renderVoice(); });
+
+/* ---------- Main screen gestures ----------
+   Drag down: pull to refresh, the one refresh gesture.
+   Drag up (as if scrolling down the page): the Today sheet rises with your finger.
+   Each touch picks its direction once, after the first 8px, so the two never fight. */
+
+const ptr = $('ptr');
+let touch0 = null, gesture = null, pullDist = 0, trayDist = 0, trayT0 = 0;
+$('screen').addEventListener('touchstart', e => {
+  touch0 = e.touches[0].clientY;
+  gesture = null; pullDist = 0; trayDist = 0; trayT0 = performance.now();
+  ptr.classList.remove('settle');
+}, { passive: true });
+$('screen').addEventListener('touchmove', e => {
+  if (touch0 == null || mawieHolding) return;
+  const dy = e.touches[0].clientY - touch0;
+  if (!gesture) {
+    if (Math.abs(dy) < 8) return;
+    gesture = dy > 0 ? (loading ? 'none' : 'pull') : (cached ? 'tray' : 'none');
+  }
+  if (gesture === 'tray') {
+    const sheet = $('todaySheet');
+    trayDist = Math.max(0, -dy);
+    sheetDrag(sheet, sheet.offsetHeight + 20 - trayDist);
+    return;
+  }
+  if (gesture !== 'pull') return;
+  pullDist = Math.max(0, dy);
+  ptr.style.transform = `translate(-50%, ${Math.min(pullDist * 0.45, 64) - 60}px)`;
+  ptr.style.opacity = Math.min(1, pullDist / 70);
+  ptr.classList.toggle('ready', pullDist > 90);
+  $('ptrText').textContent = pullDist > 90 ? 'Let go' : 'Pull to refresh';
+}, { passive: true });
+$('screen').addEventListener('touchend', async () => {
+  const g = mawieHolding ? null : gesture;
+  touch0 = null; gesture = null;
+  if (g === 'tray') { sheetRelease($('todaySheet'), committed(trayDist, trayT0)); return; }
+  if (g !== 'pull') return;
+  ptr.classList.add('settle');
+  if (pullDist > 90 && place) {
+    ptr.classList.add('busy');
+    ptr.classList.remove('ready');
+    $('ptrText').textContent = 'Refreshing';
+    nextMoodLine();
+    ptr.style.transform = 'translate(-50%, 0)';
+    await load(place);
+    ptr.classList.remove('busy');
+  }
+  ptr.style.transform = 'translate(-50%, -60px)';
+  ptr.style.opacity = 0;
+});
+
+/* ---------- First visit: staggered reveal plus Shrek's welcome ---------- */
+
+let welcomeTimer;
+function playIntro() {
+  closeSheets();
+  document.body.classList.remove('intro');
+  void document.body.offsetWidth;   // restart the reveal animation on replay
+  document.querySelectorAll('.reveal').forEach((el, i) => { el.style.animationDelay = `${i * 140}ms`; });
+  document.body.classList.add('intro');
+
+  $('voice').dataset.welcome = '1';
+  document.querySelectorAll('#cast button').forEach(b => b.classList.remove('on'));
+  $('voice').innerHTML = `<div class="name">Shrek</div><div class="role">Your host</div>
+    <div class="lines">${SHREK_WELCOME_LINES.map(l => `<p>${l}</p>`).join('')}</div>`;
+  setTimeout(() => openSheet('voiceSheet'), 900);
+  $('voice').querySelectorAll('.lines p').forEach((p, i) => setTimeout(() => p.classList.add('in'), 1300 + i * 1300));
+
+  [$('chatBtn'), $('where')].forEach(el => { el.classList.remove('pulse'); void el.offsetWidth; el.classList.add('pulse'); });
+  clearTimeout(welcomeTimer);
+  welcomeTimer = setTimeout(() => { if ($('voice').dataset.welcome) closeSheets(); }, 7900);
+  store.set('seenIntro', true);
+}
+$('infoBtn').addEventListener('click', playIntro);
+
+/* ---------- Boot ---------- */
+
+renderPlace();
+if (place) {
+  if (cached && cached.key === placeKey(place)) { renderWeather(cached.w); updateStale(); }
+  load(place);
+} else {
+  locate();
+}
+if (!store.get('seenIntro', false)) playIntro();
+setInterval(updateStale, 30000);
+
+// iOS often resumes an old session instead of cold starting, so refresh stale data on return.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && place && cached && Date.now() - cached.fetchedAt > 15 * 60000) { nextMoodLine(); load(place); }
+});
+
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
+</script>
+</body>
+</html>
