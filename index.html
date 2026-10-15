@@ -63,6 +63,17 @@ input { font: inherit; color: inherit; }
 .sky [data-s=freezing] { background: linear-gradient(172deg, #081222 0%, #1d3553 45%, #5f81a6 82%, #b8cde0 100%); }
 .sky [data-s=mild]     { background: linear-gradient(172deg, #1e2431 0%, #3a4456 45%, #6c7688 82%, #9aa2ae 100%); }
 .sky [data-s=night]    { background: linear-gradient(172deg, #03050c 0%, #0b1328 45%, #1b2748 82%, #2d3a5c 100%); }
+/* Fwea's birthday, all day, whatever the weather. Warm like the blossoms on the icon. */
+.sky [data-s=birthday] { background: linear-gradient(172deg, #2a0f2e 0%, #6b2448 40%, #d0646e 75%, #f4b860 100%); }
+
+/* Birthday confetti: one burst, then gone. Absolute inside #app, never fixed (see the note above). */
+.confetti { position: absolute; inset: 0; z-index: 35; overflow: hidden; pointer-events: none; }
+.confetti i { position: absolute; top: -18px; border-radius: 1.5px; animation: confetti-fall var(--dur) cubic-bezier(.3,.1,.6,1) var(--delay) both; }
+@keyframes confetti-fall {
+  from { transform: translate(0, 0) rotate(0); opacity: 1; }
+  85% { opacity: 1; }
+  to { transform: translate(var(--dx), calc(var(--app-h) + 40px)) rotate(var(--spin)); opacity: 0; }
+}
 /* One soft light source, top right, breathing. */
 .light {
   position: absolute; width: 130vmax; height: 130vmax; right: -60vmax; top: -70vmax; border-radius: 50%; pointer-events: none;
@@ -88,6 +99,21 @@ body[data-sky=night] .light { animation-name: breathe-dim; }
 .icon-btn:active { background: var(--ink-ghost); }
 
 .core { align-self: center; text-align: center; }
+/* Today or tomorrow. Quiet, like the staleness line; swipe sideways or tap a word. */
+/* The birthday countdown: one line in the voice, only in the last three days and on the day. */
+.countdown { font-family: var(--serif); font-style: italic; font-size: 15px; color: var(--ink-soft); margin-bottom: 2px; }
+.days { display: inline-flex; align-items: center; margin-bottom: 4px; }
+/* Letter-spacing also trails the last letter, which pushed each word left of its tap area.
+   The extra left padding puts it back in the middle, so every word sits centred on what you can tap. */
+.days button { min-height: 44px; padding: 0 10px 0 calc(10px + .14em); font-size: 10px; font-weight: 500; letter-spacing: .14em; text-transform: uppercase; line-height: 1; color: var(--ink-faint); transition: color .25s; touch-action: manipulation; }
+.days button.on { color: var(--ink); }
+.days button:active { color: var(--ink-soft); }
+.days i { width: 3px; height: 3px; border-radius: 50%; background: var(--ink-ghost); }
+/* The day's answer follows the finger sideways, then slides in from the side it came from. */
+.day-pane { will-change: transform, opacity; }
+/* body + both classes so it outranks the first-visit reveal, which keeps its class after the intro. */
+body .day-pane.swap { animation: day-in .42s cubic-bezier(.2,.8,.2,1) both; }
+@keyframes day-in { from { opacity: 0; transform: translateX(var(--from, 24px)); } }
 .temp { font-weight: 200; font-size: clamp(120px, 40vw, 190px); line-height: .9; letter-spacing: -.05em; display: inline-flex; margin-left: .12em;
   -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; touch-action: manipulation; transition: transform .35s cubic-bezier(.3,1.5,.5,1); }
 .temp.held { transform: scale(.96); }
@@ -170,6 +196,20 @@ body[data-sky=night] .light { animation-name: breathe-dim; }
 .foot a { color: inherit; }
 .foot button { font-family: var(--serif); font-style: italic; font-size: 13px; color: var(--ink-soft); padding: 6px 0; }
 
+/* The week: plain rows, one shared scale. An overview, nothing to tap. */
+.week { list-style: none; }
+.week li { display: grid; grid-template-columns: 58px 32px 34px minmax(0, 1fr) 34px; align-items: center; gap: 10px; min-height: 50px; border-top: 1px solid var(--ink-ghost); font-size: 15px; }
+.week li:first-child { border-top: 0; }
+.week .day { font-weight: 500; display: inline-flex; align-items: center; gap: 5px; }
+.week .day svg { color: var(--ink-soft); }
+.week .sky-ico { display: grid; justify-items: center; line-height: 1; }
+.week .sky-ico small { font-size: 10px; font-weight: 500; color: var(--ink-soft); margin-top: 2px; }
+.week .lo { text-align: right; color: var(--ink-faint); font-variant-numeric: tabular-nums; }
+.week .hi { font-variant-numeric: tabular-nums; }
+.week .range { position: relative; height: 4px; border-radius: 2px; background: var(--ink-ghost); }
+.week .range b { position: absolute; top: 0; bottom: 0; border-radius: 2px; background: rgba(255,255,255,.85); }
+.week .range i { position: absolute; top: 50%; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 2px rgba(18,22,32,.9); }
+
 /* Voices */
 .cast { display: flex; justify-content: center; gap: 14px; }
 .cast button { border-radius: 50%; padding: 3px; border: 1.5px solid transparent; opacity: .55; transition: opacity .2s, border-color .2s; }
@@ -205,7 +245,7 @@ body.intro .reveal { animation: rise .8s cubic-bezier(.2,.7,.2,1) both; }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .sheet { background: rgba(18,22,32,.96); }
 }
-@media (prefers-reduced-motion: reduce) { .light, .wear button, body.intro .reveal, .pulse { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .light, .wear button, body.intro .reveal, .pulse, body .day-pane.swap { animation: none; } }
 </style>
 </head>
 <body>
@@ -228,14 +268,20 @@ body.intro .reveal { animation: rise .8s cubic-bezier(.2,.7,.2,1) both; }
   </header>
 
   <section class="core reveal">
-    <div class="temp"><span id="temp">--</span><sup>°</sup></div>
-    <h1 class="verdict" id="verdict">looking at the sky</h1>
-    <p class="aside" id="aside"></p>
+    <p class="countdown" id="countdown" hidden></p>
+    <div class="days" id="days" role="tablist" aria-label="Day">
+      <button data-day="0" role="tab" class="on" aria-selected="true">Today</button><i></i><button data-day="1" role="tab" aria-selected="false">Tomorrow</button><i></i><button data-week="1" aria-label="The week ahead">Week</button>
+    </div>
+    <div class="day-pane">
+      <div class="temp"><span id="temp">--</span><sup>°</sup></div>
+      <h1 class="verdict" id="verdict">looking at the sky</h1>
+      <p class="aside" id="aside"></p>
+    </div>
   </section>
 
-  <ul class="wear reveal" id="wear" aria-label="What to wear"></ul>
+  <ul class="wear reveal day-pane" id="wear" aria-label="What to wear"></ul>
 
-  <button class="spark reveal" id="spark" aria-label="Today in detail">
+  <button class="spark reveal day-pane" id="spark" aria-label="The day in detail">
     <svg id="sparkSvg" viewBox="0 0 300 56" aria-hidden="true"></svg>
     <span id="cap"></span>
   </button>
@@ -259,7 +305,7 @@ body.intro .reveal { animation: rise .8s cubic-bezier(.2,.7,.2,1) both; }
   <h2><span id="rainLabel">Rain probability</span><small id="rainPeak"></small></h2>
   <div class="bars" id="bars"></div>
   <div class="axis"><span>12am</span><span>6am</span><span>12pm</span><span>6pm</span><span>12am</span></div>
-  <h2>Right now</h2>
+  <h2 id="statsLabel">Right now</h2>
   <div class="stats" id="stats"></div>
   <h2>Sun</h2>
   <div class="sun">
@@ -267,6 +313,13 @@ body.intro .reveal { animation: rise .8s cubic-bezier(.2,.7,.2,1) both; }
     <div class="sun-times"><div>Sunrise<b id="rise">--</b></div><div>Daylight<b id="daylen">--</b></div><div>Sunset<b id="set">--</b></div></div>
   </div>
   <div class="foot"><span>Weather by <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a></span><button id="infoBtn">replay the intro</button></div>
+</section>
+
+<section class="sheet" id="weekSheet" aria-label="The week ahead">
+  <div class="grab"></div>
+  <h2>The week</h2>
+  <ul class="week" id="week"></ul>
+  <div class="foot"><span>Weather by <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a></span></div>
 </section>
 
 <section class="sheet" id="voiceSheet" aria-label="Characters">
@@ -306,8 +359,16 @@ const MOOD_LINES = {
   warm: ['kinda like u rn', 'good day for a VB'],
   hot: ['r u in hell', 'cool down bbygirl'],
 };
-function moodLineFor(band, turn = 0) {
-  const lines = MOOD_LINES[band];
+// Also verbatim. Joins the band's rotation while it is actually raining, or sunny in daylight.
+const RAIN_MOOD_LINE = "Rain Rain Rain Rain x2.... it's fun";
+const SUN_MOOD_LINE = "Sun Sun Sun Sun x2.... it's fun";
+function moodLinesFor(band, w) {
+  if (isRainCode(w.weather_code)) return [...MOOD_LINES[band], RAIN_MOOD_LINE];
+  if (w.weather_code <= 1 && w.is_day) return [...MOOD_LINES[band], SUN_MOOD_LINE];
+  return MOOD_LINES[band];
+}
+function moodLineFor(band, turn = 0, w = null) {
+  const lines = w ? moodLinesFor(band, w) : MOOD_LINES[band];
   return lines[turn % lines.length];
 }
 
@@ -347,7 +408,31 @@ const BAND_WEAR = {
   hot:      [['tshirt', 'Linen tee', 'Loose and light, nothing dark.'], ['shorts', 'Shorts', 'The shortest acceptable ones.'], ['water', 'Water', 'Bring a bottle. Refill it.']],
 };
 
-function buildRecommendation(w, moodTurn = 0) {
+/* ---------- Fwea's birthday ---------- */
+
+// Month is 1-based. It comes round every year, so there is no year here.
+const BIRTHDAY = { month: 11, day: 7 };
+const COUNTDOWN_DAYS = 3;
+// Days from the phone's date to the birthday: 0 on the day, 1 to 3 in the countdown, otherwise null.
+// Rounded because a daylight saving change makes one day 23 or 25 hours long.
+function birthdayDaysAway(now = new Date()) {
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  let next = new Date(now.getFullYear(), BIRTHDAY.month - 1, BIRTHDAY.day);
+  if (next < today) next = new Date(now.getFullYear() + 1, BIRTHDAY.month - 1, BIRTHDAY.day);
+  const days = Math.round((next - today) / 86400000);
+  return days <= COUNTDOWN_DAYS ? days : null;
+}
+function countdownLine(days) {
+  if (days === 0) return "it's the big day";
+  if (days === 1) return "tomorrow's the big day";
+  return `${days} days till the big day`;
+}
+// Jeremy's words, verbatim. They take turns like the mood lines.
+const BIRTHDAY_VERDICTS = ['happy birthday bbygirl', "it's ur day innit"];
+// On the day before, swiping to tomorrow says this instead of "tomorrow's weather".
+const BIRTHDAY_EVE_VERDICT = 'birthday weather';
+
+function buildRecommendation(w, moodTurn = 0, birthday = false) {
   const feels = Math.round(w.apparent_temperature);
   const band = bandFor(feels);
   const d = w.daily || {};
@@ -362,8 +447,12 @@ function buildRecommendation(w, moodTurn = 0) {
   else if (isRainCode(w.weather_code) || isRainingALot(w)) items.push({ icon: 'umbrella', label: 'Umbrella', note: 'Actual rain. Not optional.' });
   else if (rainPct >= 40) items.push({ icon: 'umbrella', label: 'Umbrella later', note: `${rainPct}% chance it turns.` });
 
+  // Last in line, so it only shows when the weather leaves a slot free.
+  if (birthday) items.push({ icon: 'partyhat', label: 'Party hat', note: "It's Fwea's birthday. Wear it." });
+
   // Five chips is the most that fits one screen on an iPhone without scrolling.
-  return { band, feels, headline: moodLineFor(band, moodTurn), items: items.slice(0, 5) };
+  const headline = birthday ? BIRTHDAY_VERDICTS[moodTurn % BIRTHDAY_VERDICTS.length] : moodLineFor(band, moodTurn, w);
+  return { band, feels, headline, items: items.slice(0, 5) };
 }
 
 // Open-Meteo returns location-local ISO strings ("2026-09-29T08:15"), so read the clock straight off them.
@@ -378,9 +467,35 @@ function peakCaption(w) {
   const now = hourOf(w.time);
   let hi = now;
   for (let h = now; h < 24; h++) if (t[h] > t[hi]) hi = h;
-  if (hi === now || t[hi] - t[now] < 1) return `Cooling from here, ${Math.round(Math.min(...t.slice(now, 24)))}° by tonight.`;
+  // Tomorrow has no "from here": it is the whole day ahead.
+  if (!w.tomorrow && (hi === now || t[hi] - t[now] < 1)) return `Cooling from here, ${Math.round(Math.min(...t.slice(now, 24)))}° by tonight.`;
   return `Peaks at ${Math.round(t[hi])}° around ${fmtHour(hi)}.`;
 }
+
+// Tomorrow, shaped like a current-weather object so every rule above reads it unchanged.
+// daily and hourly are shifted so index 0 is tomorrow, and the clock sits at midnight, the start of the day.
+// The big number is the high. The outfit follows how the day feels while you're out (8am to 6pm),
+// not the warmest hour, so a 25° afternoon doesn't send you out in shorts at a 14° 8am.
+function tomorrowWeather(w) {
+  const d = w.daily, h = w.hourly;
+  const from = (o, n) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, Array.isArray(v) ? v.slice(n) : v]));
+  const mean = a => a.reduce((s, v) => s + v, 0) / a.length;
+  return {
+    tomorrow: true,
+    time: d.time[1] + 'T00:00',
+    temperature_2m: d.temperature_2m_max[1],
+    apparent_temperature: mean(h.apparent_temperature.slice(24 + 8, 24 + 19)),
+    relative_humidity_2m: mean(h.relative_humidity_2m.slice(24, 48)),
+    wind_speed_10m: d.wind_speed_10m_max[1],
+    wind_gusts_10m: d.wind_gusts_10m_max[1],
+    weather_code: d.weather_code[1],
+    is_day: 1,
+    daily: from(d, 1),
+    hourly: from(h, 24),
+  };
+}
+// The verdict for tomorrow is not a mood line. Jeremy's words.
+const TOMORROW_VERDICT = "tomorrow's weather";
 
 function pickTintForWeather(w) {
   const c = w.weather_code;
@@ -406,9 +521,56 @@ const ICONS = {
   sunnies: '<path d="M2 10h20"/><path d="M3.5 10v2a3.5 3.5 0 0 0 7 0v-2M13.5 10v2a3.5 3.5 0 0 0 7 0v-2"/>',
   umbrella: '<path d="M3 12a9 9 0 0 1 18 0z"/><path d="M12 3V2M12 12v7a2 2 0 0 1-4 0"/>',
   water: '<path d="M10 2h4v3h-4z"/><path d="M9 5h6l1 3v12a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V8z"/><path d="M8 12h8"/>',
+  partyhat: '<path d="M12 5.5 5.5 21h13z"/><circle cx="12" cy="3.5" r="1.5"/><path d="M8.6 13.4c2.2.9 4.6.9 6.8 0M7 17.5c3.2 1.2 6.8 1.2 10 0"/>',
 };
-function iconSVG(key, size = 20) {
-  return `<svg class="ico" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[key] || ''}</svg>`;
+function iconSVG(key, size = 20, set = ICONS) {
+  return `<svg class="ico" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${set[key] || ''}</svg>`;
+}
+
+// Sky glyphs for the week, same single stroke as the wear set. The cloud is drawn once and reused.
+const CLOUD = 'M6.5 18.5h11a4 4 0 0 0 .4-7.98 6 6 0 0 0-11.6 1.1A3.5 3.5 0 0 0 6.5 18.5z';
+const SKY_ICONS = {
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/>',
+  partly: '<circle cx="8.5" cy="8" r="3"/><path d="M8.5 2.5v1.2M3 8h1.2M4.6 4.1l.9.9M12.4 4.1l-.9.9"/>'
+    + `<path d="${CLOUD}" transform="translate(3.6 3.4) scale(.8)" vector-effect="non-scaling-stroke"/>`,
+  cloud: `<path d="${CLOUD}"/>`,
+  fog: '<path d="M5 8h14M3 12h18M6 16h12M9 20h6"/>',
+  rain: `<path d="${CLOUD}" transform="translate(0 -3)"/><path d="M8.5 18.5l-1 2.5M12.5 18.5l-1 2.5M16.5 18.5l-1 2.5"/>`,
+  storm: `<path d="${CLOUD}" transform="translate(0 -3)"/><path d="M12.8 17l-2 3h3l-2 3"/>`,
+  snow: `<path d="${CLOUD}" transform="translate(0 -3)"/><circle cx="8" cy="19.5" r=".9" fill="currentColor"/><circle cx="12" cy="21.5" r=".9" fill="currentColor"/><circle cx="16" cy="19.5" r=".9" fill="currentColor"/>`,
+};
+function skyIconFor(code) {
+  if (code <= 1) return 'sun';
+  if (code === 2) return 'partly';
+  if (code === 45 || code === 48) return 'fog';
+  if (code >= 95) return 'storm';
+  if (isSnowCode(code)) return 'snow';
+  if (isRainCode(code)) return 'rain';
+  return 'cloud';
+}
+
+// The week as plain rows. Bars share one scale, the week's lowest low to its highest high,
+// so a warm Wednesday sits visibly to the right of a cool Sunday.
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+function weekRows(w) {
+  const d = w.daily;
+  const lo = Math.min(...d.temperature_2m_min), hi = Math.max(...d.temperature_2m_max), span = hi - lo || 1;
+  return d.time.map((iso, i) => {
+    const date = new Date(iso + 'T12:00');
+    const rain = d.precipitation_probability_max[i];
+    return {
+      label: i === 0 ? 'Today' : WEEKDAYS[date.getDay()],
+      icon: skyIconFor(d.weather_code?.[i] ?? 3),
+      rain: rain >= 30 ? rain : null,
+      lo: Math.round(d.temperature_2m_min[i]),
+      hi: Math.round(d.temperature_2m_max[i]),
+      from: (d.temperature_2m_min[i] - lo) / span * 100,
+      to: (d.temperature_2m_max[i] - lo) / span * 100,
+      // Only today has a "now", and the current temperature can sit outside the forecast's range.
+      now: i === 0 ? Math.min(100, Math.max(0, (w.temperature_2m - lo) / span * 100)) : null,
+      birthday: date.getMonth() + 1 === BIRTHDAY.month && date.getDate() === BIRTHDAY.day,
+    };
+  });
 }
 
 // Count-up is enhancement only. The correct value is written first, and the loop
@@ -664,6 +826,23 @@ const SHREK_WELCOME_LINES = [
   "Pull down to refresh. That's the whole tour. Off you go then.",
 ];
 
+// On Fwea's birthday these replace every band and rain line. Approved by Jeremy.
+const BIRTHDAY_CHARACTER_LINES = {
+  rocky: [
+    'Today is birth-day of Fwea. One more orbit of star complete. Amaze amaze amaze!',
+    'Happy birthday, Fwea. I make you gift. Is very good gift. Is weather, question? Yes.',
+  ],
+  walle: ['Hap-py birth-day, Fwea! Ta-da!', 'Fwe-a! Fwe-a! Par-ty! Beep boop!'],
+  remy: [
+    'Bon anniversaire, Fwea! Today the cake is the main course.',
+    'Happy birthday, Fwea. Like a fine wine, you only get better, mon amie.',
+  ],
+  orange: [
+    'HEY. HEY FWEA. HAPPY BIRTHDAY. HEY.',
+    "HEY! It's Fwea's birthday! Did I say HEY? HAPPY BIRTHDAY! HEY!",
+  ],
+};
+
 // Skips whatever this character said last time in this band, so taps always feel fresh.
 function pickVariant(charKey, bandKey, lines) {
   const k = `fwea.last.${charKey}.${bandKey}`;
@@ -675,7 +854,8 @@ function pickVariant(charKey, bandKey, lines) {
   return lines[i];
 }
 
-function characterLine(charKey, w) {
+function characterLine(charKey, w, birthday = false) {
+  if (birthday) return pickVariant(charKey, 'birthday', BIRTHDAY_CHARACTER_LINES[charKey]);
   const rainPct = w.daily?.precipitation_probability_max?.[0] ?? 0;
   if (!isSnowCode(w.weather_code) && (isRainCode(w.weather_code) || rainPct >= 60)) {
     return pickVariant(charKey, 'rain', RAIN_LINES[charKey]).replace('{RAIN}', rainPct);
@@ -695,9 +875,9 @@ const PRESETS = [
 ];
 const STALE_AFTER_MIN = 30;
 // Status bar colour per sky: the top stop of each gradient.
-const SKY_TOP = { clear: '#0e1a3a', hot: '#2e0900', rainy: '#161b22', freezing: '#081222', mild: '#1e2431', night: '#03050c' };
+const SKY_TOP = { clear: '#0e1a3a', hot: '#2e0900', rainy: '#161b22', freezing: '#081222', mild: '#1e2431', night: '#03050c', birthday: '#2a0f2e' };
 // Page colour per sky: the bottom stop, so anything the sky layer doesn't cover still matches.
-const SKY_BOTTOM = { clear: '#b79e8e', hot: '#f7a53f', rainy: '#66707c', freezing: '#b8cde0', mild: '#9aa2ae', night: '#2d3a5c' };
+const SKY_BOTTOM = { clear: '#b79e8e', hot: '#f7a53f', rainy: '#66707c', freezing: '#b8cde0', mild: '#9aa2ae', night: '#2d3a5c', birthday: '#f4b860' };
 
 const $ = id => document.getElementById(id);
 const store = {
@@ -739,9 +919,10 @@ async function fetchWeather(p) {
   const url = 'https://api.open-meteo.com/v1/forecast'
     + `?latitude=${p.lat}&longitude=${p.lon}`
     + '&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,wind_gusts_10m,weather_code,is_day,precipitation'
-    + '&hourly=precipitation_probability,precipitation,temperature_2m'
+    + '&hourly=precipitation_probability,precipitation,temperature_2m,apparent_temperature,relative_humidity_2m'
     + '&daily=uv_index_max,precipitation_probability_max,precipitation_sum,temperature_2m_max,temperature_2m_min,sunrise,sunset'
-    + '&timezone=auto&forecast_days=2';
+    + ',weather_code,wind_speed_10m_max,wind_gusts_10m_max'
+    + '&timezone=auto&forecast_days=7';
   const r = await fetch(url);
   if (!r.ok) throw new Error('Open-Meteo ' + r.status);
   const d = await r.json();
@@ -760,6 +941,7 @@ async function load(p) {
     loading = false;
     renderWeather(w);
     updateStale();
+    birthdayHello();
   } catch (e) {
     // Offline or rate limited: keep what's on screen and say so.
     loading = false;
@@ -790,16 +972,33 @@ function updateStale() {
   $('stale').classList.toggle('old', min > STALE_AFTER_MIN);
 }
 
-function renderWeather(w) {
+// 0 is today, 1 is tomorrow. Not saved: every open answers today first.
+let day = 0;
+// A copy cached by an older version lacks tomorrow's fields until the next fetch.
+const canTomorrow = w => Array.isArray(w.daily?.weather_code) && Array.isArray(w.hourly?.apparent_temperature);
+const viewOf = w => (day && canTomorrow(w) ? tomorrowWeather(w) : w);
+const viewWeather = () => viewOf(cached.w);
+const isBirthdayView = () => day === 0 && birthdayDaysAway() === 0;
+
+function renderWeather(raw) {
+  const w = viewOf(raw);
   const d = w.daily;
   const now = hourOf(w.time);
-  const rec = buildRecommendation(w, moodTurn);
+  // The birthday belongs to the day on screen: today on the 7th, never tomorrow's view of the 8th.
+  const away = birthdayDaysAway();
+  const birthday = isBirthdayView();
+  const rec = buildRecommendation(w, moodTurn, birthday);
 
   // The first half-second: temperature, verdict, one aside.
-  setSky(skyFor(w));
+  setSky(birthday ? 'birthday' : skyFor(w));
   animateNumber($('temp'), Math.round(w.temperature_2m));
-  $('verdict').textContent = rec.headline;
-  $('aside').textContent = `${describeCode(w.weather_code, w.is_day)} · feels ${rec.feels}°`;
+  $('verdict').textContent = !w.tomorrow ? rec.headline : away === 1 ? BIRTHDAY_EVE_VERDICT : TOMORROW_VERDICT;
+  $('countdown').hidden = away == null;
+  $('countdown').textContent = away == null ? '' : countdownLine(away);
+  $('aside').textContent = w.tomorrow
+    ? `${describeCode(w.weather_code, 1)} · ${Math.round(d.temperature_2m_min[0])}° to ${Math.round(d.temperature_2m_max[0])}°`
+    : `${describeCode(w.weather_code, w.is_day)} · feels ${rec.feels}°`;
+  renderDays();
 
   $('wear').style.setProperty('--n', rec.items.length);
   $('wear').innerHTML = rec.items.map((it, i) =>
@@ -811,12 +1010,13 @@ function renderWeather(w) {
   const pts = t.map((v, h) => [h / 23 * 300, 48 - (v - lo) / (hi - lo || 1) * 40]);
   const line = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join('');
   const [nx, ny] = pts[now];
+  // No "now" dot on tomorrow's curve: you aren't in it yet.
   $('sparkSvg').innerHTML = `
     <defs><linearGradient id="fade" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".18"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient></defs>
     <path d="${line}L300 56L0 56Z" fill="url(#fade)"/>
     <path d="${line}" fill="none" stroke="rgba(255,255,255,.8)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-    <circle cx="${nx}" cy="${ny}" r="8" fill="rgba(255,255,255,.18)"/>
-    <circle cx="${nx}" cy="${ny}" r="3.5" fill="#fff"/>`;
+    ${w.tomorrow ? '' : `<circle cx="${nx}" cy="${ny}" r="8" fill="rgba(255,255,255,.18)"/>
+    <circle cx="${nx}" cy="${ny}" r="3.5" fill="#fff"/>`}`;
   $('cap').textContent = peakCaption(w);
   $('spark').classList.remove('note');
 
@@ -824,7 +1024,8 @@ function renderWeather(w) {
   const probs = w.hourly.precipitation_probability.slice(0, 24);
   $('bars').innerHTML = probs.map((p, h) =>
     `<span class="${h < now ? 'past' : ''}" style="height:${Math.max(3, p)}%"></span>`).join('')
-    + `<i style="left:calc(${(now + 0.5) / 24 * 100}% - .5px)"></i>`;
+    + (w.tomorrow ? '' : `<i style="left:calc(${(now + 0.5) / 24 * 100}% - .5px)"></i>`);
+  $('statsLabel').textContent = w.tomorrow ? 'Tomorrow' : 'Right now';
   // The one and only place "it's like a lawt" appears.
   $('rainLabel').textContent = isRainingALot(w) ? "Rain probability, it's like a lawt" : 'Rain probability';
   const ahead = probs.slice(now), peak = Math.max(...ahead);
@@ -854,7 +1055,75 @@ function renderWeather(w) {
   $('daylen').textContent = `${Math.floor(len / 60)}h ${len % 60}m`;
 
   if ($('voiceSheet').classList.contains('open') && !$('voice').dataset.welcome) renderVoice();
+  renderWeek(raw);
 }
+
+// The week sheet always reads the real forecast, whichever day is on the main screen.
+function renderWeek(w) {
+  $('week').innerHTML = weekRows(w).map(r => `<li>
+    <span class="day">${r.label}${r.birthday ? iconSVG('partyhat', 14) : ''}</span>
+    <span class="sky-ico">${iconSVG(r.icon, 22, SKY_ICONS)}${r.rain == null ? '' : `<small>${r.rain}%</small>`}</span>
+    <span class="lo">${r.lo}°</span>
+    <span class="range"><b style="left:${r.from.toFixed(1)}%;right:${(100 - r.to).toFixed(1)}%"></b>${r.now == null ? '' : `<i style="left:${r.now.toFixed(1)}%"></i>`}</span>
+    <span class="hi">${r.hi}°</span>
+  </li>`).join('');
+}
+
+/* ---------- Today or tomorrow ----------
+   Swipe left on the sky for tomorrow, right to come back, or tap the word. The answer follows
+   the finger sideways, so it feels like turning a page rather than pressing a button. */
+const panes = [...document.querySelectorAll('.day-pane')];
+function renderDays() {
+  document.querySelectorAll('#days button').forEach(b => {
+    const on = +b.dataset.day === day;
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-selected', on);
+  });
+}
+// Sideways is a path: today, tomorrow, then the week sheet. The dead-end direction just gives a little.
+const dayTarget = dx => (dx < 0 ? (day === 0 ? 1 : 'week') : dx > 0 && day === 1 ? 0 : null);
+// Where a sideways move lands: a day on the main screen, or the week sheet over it.
+function goTo(target) {
+  if (target !== 'week') return setDay(target);
+  setDay(day);   // the panes snap back under the sheet
+  if (cached) openSheet('weekSheet');
+}
+function paneDrag(dx) {
+  const k = dayTarget(dx) == null ? 0.12 : 0.35;
+  panes.forEach(p => {
+    p.style.transition = 'none';
+    p.style.transform = `translateX(${dx * k}px)`;
+    p.style.opacity = 1 - Math.min(0.6, Math.abs(dx * k) / 160);
+  });
+}
+function setDay(n) {
+  const changed = n !== day && cached && canTomorrow(cached.w);
+  panes.forEach(p => {
+    p.style.transition = changed ? '' : 'transform .3s ease, opacity .3s ease';
+    p.style.transform = p.style.opacity = '';
+  });
+  if (!changed) return;
+  // Tomorrow arrives from the right, today from the left, the way the finger moved.
+  const from = n > day ? '40px' : '-40px';
+  day = n;
+  renderWeather(cached.w);
+  panes.forEach(p => {
+    p.style.setProperty('--from', from);
+    p.classList.remove('swap');
+    void p.offsetWidth;
+    p.classList.add('swap');
+  });
+}
+panes.forEach(p => p.addEventListener('animationend', e => { if (e.animationName === 'day-in') p.classList.remove('swap'); }));
+$('days').addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (b) goTo(b.dataset.week ? 'week' : +b.dataset.day);
+});
+addEventListener('keydown', e => {
+  if (document.querySelector('.sheet.open') || document.activeElement?.tagName === 'INPUT') return;
+  if (e.key === 'ArrowRight') goTo(dayTarget(-1));
+  if (e.key === 'ArrowLeft') setDay(0);
+});
 
 // The caption line can be borrowed for a short note, then it goes back to the forecast.
 // ms = 0 means hold it until a later call gives it back.
@@ -867,7 +1136,7 @@ function showCaptionNote(text, ms) {
 function restoreCaption() {
   clearTimeout(noteTimer);
   document.querySelectorAll('#wear button.on').forEach(x => x.classList.remove('on'));
-  $('cap').textContent = cached ? peakCaption(cached.w) : '';
+  $('cap').textContent = cached ? peakCaption(viewWeather()) : '';
   $('spark').classList.remove('note');
 }
 
@@ -1001,12 +1270,22 @@ document.querySelectorAll('.sheet').forEach(sheet => {
 });
 
 // Trackpad or mouse wheel: scroll down to open Today, scroll back up at the top to close.
-let wheelAcc = 0, wheelQuietUntil = 0, wheelReset;
+let wheelAcc = 0, wheelX = 0, wheelQuietUntil = 0, wheelReset;
 addEventListener('wheel', e => {
   if (performance.now() < wheelQuietUntil) return;   // let momentum from the last toggle die out
   clearTimeout(wheelReset);
-  wheelReset = setTimeout(() => { wheelAcc = 0; }, 200);
+  wheelReset = setTimeout(() => { wheelAcc = wheelX = 0; }, 200);
   const open = document.querySelector('.sheet.open');
+  // Sideways on a trackpad turns the day, like the swipe.
+  if (!open && cached && Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+    wheelX += e.deltaX;
+    if (Math.abs(wheelX) < 60) return;
+    const n = dayTarget(-wheelX);
+    wheelX = 0;
+    wheelQuietUntil = performance.now() + 600;
+    if (n != null) goTo(n);
+    return;
+  }
   if (!open && e.deltaY > 0 && cached) wheelAcc += e.deltaY;
   else if (open && e.deltaY < 0 && open.scrollTop <= 0) wheelAcc -= e.deltaY;
   else return;
@@ -1079,7 +1358,7 @@ function renderVoice() {
   document.querySelectorAll('#cast button').forEach((b, i) => b.classList.toggle('on', i === voiceIndex));
   delete $('voice').dataset.welcome;
   $('voice').innerHTML = `<div class="name">${ch.name}</div><div class="role">${ch.role}</div>
-    <p class="quote">${characterLine(ch.key, cached.w)}</p>
+    <p class="quote">${characterLine(ch.key, viewWeather(), isBirthdayView())}</p>
     <button class="pill" id="again">Another one</button>`;
 }
 $('cast').addEventListener('click', e => {
@@ -1094,18 +1373,26 @@ $('voice').addEventListener('click', e => { if (e.target.id === 'again') renderV
    Each touch picks its direction once, after the first 8px, so the two never fight. */
 
 const ptr = $('ptr');
-let touch0 = null, gesture = null, pullDist = 0, trayDist = 0, trayT0 = 0;
+let touch0 = null, touchX0 = 0, gesture = null, pullDist = 0, trayDist = 0, trayT0 = 0, dayDx = 0;
 $('screen').addEventListener('touchstart', e => {
   touch0 = e.touches[0].clientY;
-  gesture = null; pullDist = 0; trayDist = 0; trayT0 = performance.now();
+  touchX0 = e.touches[0].clientX;
+  gesture = null; pullDist = 0; trayDist = 0; dayDx = 0; trayT0 = performance.now();
   ptr.classList.remove('settle');
 }, { passive: true });
 $('screen').addEventListener('touchmove', e => {
   if (touch0 == null || mawieHolding) return;
   const dy = e.touches[0].clientY - touch0;
+  const dx = e.touches[0].clientX - touchX0;
   if (!gesture) {
-    if (Math.abs(dy) < 8) return;
-    gesture = dy > 0 ? (loading ? 'none' : 'pull') : (cached ? 'tray' : 'none');
+    if (Math.max(Math.abs(dx), Math.abs(dy)) < 8) return;
+    if (Math.abs(dx) > Math.abs(dy)) gesture = cached ? 'day' : 'none';
+    else gesture = dy > 0 ? (loading ? 'none' : 'pull') : (cached ? 'tray' : 'none');
+  }
+  if (gesture === 'day') {
+    dayDx = dx;
+    paneDrag(dx);
+    return;
   }
   if (gesture === 'tray') {
     const sheet = $('todaySheet');
@@ -1124,6 +1411,11 @@ $('screen').addEventListener('touchend', async () => {
   const g = mawieHolding ? null : gesture;
   touch0 = null; gesture = null;
   if (g === 'tray') { sheetRelease($('todaySheet'), committed(trayDist, trayT0)); return; }
+  if (g === 'day') {
+    const n = dayTarget(dayDx);
+    goTo(n != null && committed(Math.abs(dayDx), trayT0) ? n : day);
+    return;
+  }
   if (g !== 'pull') return;
   ptr.classList.add('settle');
   if (pullDist > 90 && place) {
@@ -1134,6 +1426,7 @@ $('screen').addEventListener('touchend', async () => {
     ptr.style.transform = 'translate(-50%, 0)';
     await load(place);
     ptr.classList.remove('busy');
+    if (isBirthdayView()) confetti();
   }
   ptr.style.transform = 'translate(-50%, -60px)';
   ptr.style.opacity = 0;
@@ -1189,6 +1482,35 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
 addEventListener('scroll', () => { if (scrollY && document.activeElement?.tagName !== 'INPUT') scrollTo(0, 0); }, { passive: true });
 $('q').addEventListener('blur', () => scrollTo(0, 0));
 
+/* ---------- Fwea's birthday: confetti and the characters ---------- */
+
+// White plus the four character colours: no colour the app doesn't already own.
+const CONFETTI_COLOURS = ['#ffffff', ...CHARACTERS.map(c => c.c1)];
+function confetti() {
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const pick = a => a[Math.floor(Math.random() * a.length)];
+  const layer = document.createElement('div');
+  layer.className = 'confetti';
+  layer.innerHTML = Array.from({ length: 60 }, () => {
+    const size = 5 + Math.random() * 4;
+    const spin = (Math.random() < 0.5 ? -1 : 1) * (360 + Math.random() * 540);
+    return `<i style="left:${(Math.random() * 100).toFixed(1)}%;width:${size.toFixed(1)}px;height:${(size * 1.6).toFixed(1)}px;background:${pick(CONFETTI_COLOURS)};`
+      + `--dx:${((Math.random() - 0.5) * 120).toFixed(0)}px;--spin:${spin.toFixed(0)}deg;--dur:${(2.6 + Math.random() * 1.4).toFixed(2)}s;--delay:${(Math.random() * 0.6).toFixed(2)}s"></i>`;
+  }).join('');
+  $('app').appendChild(layer);
+  setTimeout(() => layer.remove(), 4800);
+}
+// The characters open by themselves once on the day, the first time there is weather on screen.
+// Never over Shrek's first-visit welcome.
+function birthdayHello() {
+  const year = new Date().getFullYear();
+  if (!cached || !isBirthdayView() || store.get('birthdayHello', 0) === year || $('voice').dataset.welcome) return;
+  store.set('birthdayHello', year);
+  voiceIndex = todaysCharacterIndex();
+  renderVoice();
+  setTimeout(() => openSheet('voiceSheet'), 900);
+}
+
 /* ---------- Boot ---------- */
 
 renderPlace();
@@ -1199,11 +1521,19 @@ if (place) {
   locate();
 }
 if (!store.get('seenIntro', false)) playIntro();
+if (isBirthdayView()) { confetti(); birthdayHello(); }
 setInterval(updateStale, 30000);
 
 // iOS often resumes an old session instead of cold starting, so refresh stale data on return.
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible' && place && cached && Date.now() - cached.fetchedAt > 15 * 60000) { nextMoodLine(); load(place); }
+  if (document.visibilityState === 'visible' && place && cached && Date.now() - cached.fetchedAt > 15 * 60000) {
+    // Coming back is a new look at the app, so it answers today again.
+    day = 0;
+    nextMoodLine();
+    renderWeather(cached.w);
+    if (isBirthdayView()) confetti();
+    load(place);
+  }
 });
 
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');

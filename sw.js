@@ -1,6 +1,6 @@
 // Bump this on every deploy. It is the only thing that makes installed copies pick up a new shell.
-// v25: see-through status bar is back; the app is a normal page sized to the real screen, no fixed layers.
-const CACHE = 'fwea-hub-v25';
+// v29: rain and sun mood lines join the rotation; day label tap areas centred.
+const CACHE = 'fwea-hub-v29';
 
 const SHELL = [
   './',
