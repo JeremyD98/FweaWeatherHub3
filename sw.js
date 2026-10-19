@@ -1,6 +1,7 @@
 // Bump this on every deploy. It is the only thing that makes installed copies pick up a new shell.
-// v29: rain and sun mood lines join the rotation; day label tap areas centred.
-const CACHE = 'fwea-hub-v29';
+// Bump the build number in index.html's Today footer (id="version") to match.
+// v31: birthday on 8 November, plus the build number in the Today sheet footer.
+const CACHE = 'fwea-hub-v31';
 
 const SHELL = [
   './',

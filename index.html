@@ -312,7 +312,7 @@ body.intro .reveal { animation: rise .8s cubic-bezier(.2,.7,.2,1) both; }
     <svg id="sunSvg" viewBox="0 0 300 126" aria-hidden="true"></svg>
     <div class="sun-times"><div>Sunrise<b id="rise">--</b></div><div>Daylight<b id="daylen">--</b></div><div>Sunset<b id="set">--</b></div></div>
   </div>
-  <div class="foot"><span>Weather by <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a></span><button id="infoBtn">replay the intro</button></div>
+  <div class="foot"><span>Weather by <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a><span id="version"> · v31</span></span><button id="infoBtn">replay the intro</button></div>
 </section>
 
 <section class="sheet" id="weekSheet" aria-label="The week ahead">
@@ -411,7 +411,7 @@ const BAND_WEAR = {
 /* ---------- Fwea's birthday ---------- */
 
 // Month is 1-based. It comes round every year, so there is no year here.
-const BIRTHDAY = { month: 11, day: 7 };
+const BIRTHDAY = { month: 11, day: 8 };
 const COUNTDOWN_DAYS = 3;
 // Days from the phone's date to the birthday: 0 on the day, 1 to 3 in the countdown, otherwise null.
 // Rounded because a daylight saving change makes one day 23 or 25 hours long.
@@ -984,7 +984,7 @@ function renderWeather(raw) {
   const w = viewOf(raw);
   const d = w.daily;
   const now = hourOf(w.time);
-  // The birthday belongs to the day on screen: today on the 7th, never tomorrow's view of the 8th.
+  // The birthday belongs to the day on screen: today on the 8th, never tomorrow's view of the 9th.
   const away = birthdayDaysAway();
   const birthday = isBirthdayView();
   const rec = buildRecommendation(w, moodTurn, birthday);
